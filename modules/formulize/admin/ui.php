@@ -150,6 +150,9 @@ switch($active_page) {
     case "logviewer":
         include "logviewer.php";
         break;
+    case "appearance":
+        include "appearance.php";
+        break;
     default:
     case "home":
         include "home.php";
