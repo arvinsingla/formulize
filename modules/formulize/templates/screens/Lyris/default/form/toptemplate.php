@@ -1,7 +1,7 @@
 <?php
 
 print "
-<div class='card'>
+<div class='card fz-form-screen'>
 
 <div class='card__header'>
 	<h3 class='card__title'>".$formTitle."</h3>
