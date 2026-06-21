@@ -2123,6 +2123,63 @@ textarea.fz-control {
   border-color: var(--c-accent-hover);
 }
 
+/* On multi-page forms the bar also holds #prev ("Save and Close") and #next
+   ("Save and Finish"). Core paints these via ID selectors with an arrow
+   background image, `color:#fff !important`, `text-indent`, `text-shadow` and a
+   fixed 185px width — which beat the class rules above and left them as broken
+   white-on-light buttons with a stray arrow. Override by id (inside the bar) so
+   they get the same clean secondary treatment as Close. */
+#multipage-controls #prev,
+#multipage-controls #next,
+#multipage-controls .formulize-form-submit-button {
+  background-image: none !important;
+  text-indent: 0 !important;
+  text-align: center !important;
+  text-shadow: none !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 34px !important;
+  font-size: var(--fs-13) !important;
+  color: var(--c-text) !important;
+}
+/* Re-assert legible on-accent text for the Save-family primary after the reset. */
+#multipage-controls .formulize-form-submit-button[name^="save"] {
+  color: var(--c-text-on-accent) !important;
+}
+
+/* ---------- Admin-only "edit element" link ----------
+   Core prepends `<a class="formulize-element-edit-link">edit element</a>` as the
+   first child of every field. As a normal flow child of the (now full-width,
+   column) `.fz-field` it took its own row and inserted a large gap between every
+   field for admins/webmasters. Pull it out of flow and anchor it at the top-right
+   by the label, revealed on field hover (owner request) — so it stays out of the
+   way but is reachable where you'd look for it. */
+.fz-field { position: relative; }
+.fz-field > .formulize-element-edit-link {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  font-size: var(--fs-11, 11px);
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--c-accent);
+  text-decoration: none;
+  background: var(--c-surface);
+  padding: 1px 6px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-1) var(--ease);
+}
+.fz-field:hover > .formulize-element-edit-link,
+.fz-field > .formulize-element-edit-link:focus {
+  opacity: 1;
+  pointer-events: auto;
+}
+.fz-field > .formulize-element-edit-link:hover { text-decoration: underline; }
+
 /* ============================================================
    Mobile — form screen adjustments
    ============================================================ */
