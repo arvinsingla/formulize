@@ -1557,8 +1557,14 @@ textarea {
          .form-help-text                  ← elementtemplate1/2.php
    ============================================================ */
 
-/* ---------- Form-screen density tokens ---------- */
+/* ---------- Density tokens: .fz-form + modifiers ----------
+   Ported from the design system (forms.css). `.fz-form` carries the base
+   density vars; `.fz-form--compact` / `--comfy` are modifier classes set on
+   the form container (owner decision: default container = label-top + compact).
+   `.fz-form-screen` and `.fz-drawer__body` retain the same vars as additive
+   aliases so existing markup keeps the 38px form sizing. */
 
+.fz-form,
 .fz-form-screen {
   /* 38px control height for dedicated entry-editing screens */
   --field-h:        38px;
@@ -1569,8 +1575,31 @@ textarea {
   --field-text:     var(--fs-14);
   --label-text:     var(--fs-13);
   --label-gap:      6px;
+  --label-col-w:    220px;
   --help-text:      var(--fs-12);
   --required-color: var(--c-danger);
+}
+
+.fz-form--compact {
+  --field-h:     32px;
+  --field-pad-x: 10px;
+  --field-gap:   12px;
+  --field-text:  var(--fs-13);
+  --label-text:  var(--fs-12);
+  --label-gap:   4px;
+  --label-col-w: 200px;
+  --help-text:   var(--fs-11, 11px);
+}
+
+.fz-form--comfy {
+  --field-h:     44px;
+  --field-pad-x: 14px;
+  --field-gap:   24px;
+  --field-text:  var(--fs-15);
+  --label-text:  var(--fs-14);
+  --label-gap:   8px;
+  --label-col-w: 240px;
+  --help-text:   var(--fs-13);
 }
 
 /* ---------- .fz-control primitive (38px) ----------
@@ -1637,11 +1666,99 @@ textarea.fz-control {
   resize: vertical;
 }
 
+/* ---------- .fz-control variants (ported from forms.css) ----------
+   Available for future use / opt-in markup. Non-breaking: applied only when
+   the modifier class is present. */
+
+.fz-control--filled {
+  background: var(--c-surface-3);
+  border-color: transparent;
+}
+.fz-control--filled:hover:not(:disabled):not(:focus) {
+  background: var(--c-surface-2);
+  border-color: var(--c-border);
+}
+.fz-control--filled:focus { background: var(--c-surface); }
+
+.fz-control--underline {
+  border: 0;
+  border-bottom: 1px solid var(--c-border-strong);
+  border-radius: 0;
+  padding-left: 0;
+  padding-right: 0;
+  background: transparent;
+}
+.fz-control--underline:focus {
+  box-shadow: none;
+  border-bottom-color: var(--c-border-focus);
+  border-bottom-width: 2px;
+}
+
+.fz-control--multiline {
+  height: auto;
+  min-height: calc(var(--field-h, 38px) * 2.4);
+  padding: 10px var(--field-pad-x, 12px);
+  line-height: var(--lh-base);
+  resize: vertical;
+}
+
+/* Prefix/suffix affix wrapper */
+.fz-control-affix {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--field-radius, var(--r-2));
+  background: var(--c-surface);
+  height: var(--field-h, 38px);
+  overflow: hidden;
+  transition: border-color var(--dur-1) var(--ease),
+              box-shadow var(--dur-1) var(--ease);
+}
+.fz-control-affix:hover:not(:focus-within) { border-color: var(--c-text-muted); }
+.fz-control-affix:focus-within {
+  border-color: var(--c-border-focus);
+  box-shadow: var(--sh-focus);
+}
+.fz-control-affix .fz-control {
+  border: 0;
+  background: transparent;
+  height: 100%;
+  padding: 0 12px;
+}
+.fz-control-affix .fz-control:focus { box-shadow: none; }
+.fz-control-affix__lead,
+.fz-control-affix__trail {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: var(--field-text, var(--fs-14));
+  color: var(--c-text-subtle);
+  background: var(--c-surface-2);
+  border-right: 1px solid var(--c-border);
+  white-space: nowrap;
+  user-select: none;
+}
+.fz-control-affix__trail {
+  border-right: 0;
+  border-left: 1px solid var(--c-border);
+}
+
 /* ---------- Contextual override: raw form elements inside .fz-form-screen ----------
    Formulize renders raw <input>, <select>, <textarea> with no class. Inside a form
    screen these should use the 38px control sizing instead of the 32px list baseline.
    We scope tightly so only elements directly inside form rows are affected. */
 
+.fz-form input[type="text"],
+.fz-form input[type="email"],
+.fz-form input[type="number"],
+.fz-form input[type="date"],
+.fz-form input[type="datetime-local"],
+.fz-form input[type="time"],
+.fz-form input[type="tel"],
+.fz-form input[type="url"],
+.fz-form input:not([type]),
+.fz-form select,
+.fz-form textarea,
 .fz-form-screen input[type="text"],
 .fz-form-screen input[type="email"],
 .fz-form-screen input[type="number"],
@@ -1660,6 +1777,7 @@ textarea.fz-control {
   width: 100%;
 }
 
+.fz-form textarea,
 .fz-form-screen textarea {
   height: auto;
   min-height: calc(var(--field-h) * 2.4);
@@ -1667,6 +1785,7 @@ textarea.fz-control {
 }
 
 /* Selects: preserve the chevron background already set by the base rule */
+.fz-form select,
 .fz-form-screen select {
   padding-right: 30px;
 }
@@ -1700,13 +1819,16 @@ textarea.fz-control {
 
 /* ---------- Form container & field rows ---------- */
 
+.fz-form,
 .form-container {
   display: flex;
   flex-direction: column;
-  gap: 0; /* gap controlled by .form-row margin-bottom */
+  gap: 0; /* gap controlled by .fz-field margin-bottom */
 }
 
-/* Each field row: label stacked above the control with a consistent gap */
+/* ---------- Field wrapper: .fz-field (primitive) ----------
+   `.form-row` retained as an additive alias. */
+.fz-field,
 .form-row {
   display: flex;
   flex-direction: column;
@@ -1715,12 +1837,14 @@ textarea.fz-control {
   position: relative;
 }
 
+.fz-field:last-child,
 .form-row:last-child {
   margin-bottom: 0;
 }
 
-/* ---------- Label ---------- */
+/* ---------- Label: .fz-field__label (primitive) ---------- */
 
+.fz-field__label,
 .form-label {
   display: inline-flex;
   align-items: center;
@@ -1729,11 +1853,18 @@ textarea.fz-control {
   font-weight: 600;
   color: var(--c-text);
   line-height: var(--lh-snug);
-  /* 6px gap between label and control is supplied by .form-row gap */
+  /* label-to-control gap supplied by the .fz-field gap */
 }
 
-/* Required asterisk inherits its inline style (color:red) from Formulize core;
-   we leave that intact and only normalise the weight. */
+/* ---------- Required indicator: .fz-field__req asterisk (primitive) ---------- */
+
+.fz-field__req {
+  color: var(--required-color, var(--c-danger));
+  font-weight: 700;
+  font-size: 0.95em;
+}
+
+/* Legacy inline red asterisk (other contexts / core fallback) — normalise. */
 .form-label span[style*="color: red"],
 .form-label span[style*="color:red"] {
   font-weight: 700;
@@ -1741,13 +1872,43 @@ textarea.fz-control {
   color: var(--required-color, var(--c-danger)) !important;
 }
 
-/* ---------- Help text ---------- */
+/* ---------- Body wrapper: .fz-field__body (primitive) ---------- */
 
+.fz-field__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* ---------- Help text: .fz-field__help (primitive) ---------- */
+
+.fz-field__help,
 .form-help-text {
   font-size: var(--help-text, var(--fs-12));
   color: var(--c-text-muted);
   line-height: 1.45;
   margin: 2px 0 0;
+}
+
+/* ---------- Label modes (set on the form container) ----------
+   Default = label-top (the natural column flow above). Left-label and float
+   are ported for completeness / opt-in via the container modifier class. */
+
+.fz-form--label-left .fz-field {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--s-6, 24px);
+}
+.fz-form--label-left .fz-field__label {
+  width: var(--label-col-w, 220px);
+  flex: none;
+  padding-top: calc((var(--field-h) - var(--label-text) * 1.35) / 2);
+  justify-content: flex-start;
+}
+.fz-form--label-left .fz-field__body {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* ---------- Left-label two-column layout (elementtemplate2) ----------
@@ -1884,6 +2045,7 @@ textarea.fz-control {
    ============================================================ */
 
 @media (max-width: 768px) {
+  .fz-form,
   .fz-form-screen,
   .fz-drawer__body {
     --field-h:     44px;   /* iOS tap target */
