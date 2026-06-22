@@ -2181,6 +2181,260 @@ textarea.fz-control {
 .fz-field > .formulize-element-edit-link:hover { text-decoration: underline; }
 
 /* ============================================================
+   Control-type fidelity pass — kitchen-sink controls
+   ------------------------------------------------------------
+   Formulize renders these element types as raw native controls
+   (no .fz-control / .fz-range / .fz-colorpicker / .fz-droparea
+   wrappers exist in the markup). We style the native elements
+   directly so they match the design primitives in forms.css,
+   reusing the same accent / surface / radius tokens.
+   Scoped to form-screen + drawer contexts only.
+   ============================================================ */
+
+/* ---------- Range slider (forms.css .fz-range) ----------
+   Markup: <nobr><input type="range" ...><output>5</output></nobr>
+   Style the native slider track + thumb in accent, and the live
+   value <output> as the design's mono value bubble. */
+
+.fz-form-screen input[type="range"],
+.fz-drawer__body input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  max-width: 320px;
+  height: 6px;
+  margin: 12px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--c-surface-3);
+  cursor: pointer;
+  vertical-align: middle;
+  box-shadow: none;
+}
+.fz-form-screen input[type="range"]:hover,
+.fz-drawer__body input[type="range"]:hover { border: 0; }
+.fz-form-screen input[type="range"]:focus,
+.fz-drawer__body input[type="range"]:focus {
+  outline: none;
+  box-shadow: none;
+}
+.fz-form-screen input[type="range"]:focus-visible,
+.fz-drawer__body input[type="range"]:focus-visible {
+  box-shadow: var(--sh-focus);
+}
+/* WebKit track + thumb */
+.fz-form-screen input[type="range"]::-webkit-slider-runnable-track,
+.fz-drawer__body input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: transparent;
+}
+.fz-form-screen input[type="range"]::-webkit-slider-thumb,
+.fz-drawer__body input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: var(--c-surface);
+  border: 2px solid var(--c-accent);
+  box-shadow: var(--sh-2);
+  cursor: grab;
+}
+.fz-form-screen input[type="range"]::-webkit-slider-thumb:active,
+.fz-drawer__body input[type="range"]::-webkit-slider-thumb:active { cursor: grabbing; }
+/* Firefox track + thumb */
+.fz-form-screen input[type="range"]::-moz-range-track,
+.fz-drawer__body input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--c-surface-3);
+}
+.fz-form-screen input[type="range"]::-moz-range-progress,
+.fz-drawer__body input[type="range"]::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--c-accent);
+}
+.fz-form-screen input[type="range"]::-moz-range-thumb,
+.fz-drawer__body input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--c-surface);
+  border: 2px solid var(--c-accent);
+  box-shadow: var(--sh-2);
+  cursor: grab;
+}
+/* Live value readout — the design's .fz-range__bubble, rendered inline */
+.fz-form-screen input[type="range"] + output,
+.fz-form-screen input[type="range"] ~ output,
+.fz-drawer__body input[type="range"] + output,
+.fz-drawer__body input[type="range"] ~ output {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11, 11px);
+  line-height: 1.4;
+  color: var(--c-text-on-accent);
+  background: var(--c-text);
+  border-radius: var(--r-2);
+  vertical-align: middle;
+  min-width: 24px;
+  text-align: center;
+}
+
+/* ---------- Color picker (forms.css .fz-colorpicker) ----------
+   Markup: <input type="color" value="#ffffff">
+   Style the native swatch as the design's .fz-colorpicker__swatch. */
+
+.fz-form-screen input[type="color"],
+.fz-drawer__body input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--field-h, 38px);
+  height: var(--field-h, 38px);
+  padding: 3px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--field-radius, var(--r-2));
+  background: var(--c-surface);
+  cursor: pointer;
+  vertical-align: middle;
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+}
+.fz-form-screen input[type="color"]:hover,
+.fz-drawer__body input[type="color"]:hover { border-color: var(--c-text-muted); }
+.fz-form-screen input[type="color"]:focus-visible,
+.fz-drawer__body input[type="color"]:focus-visible {
+  border-color: var(--c-border-focus);
+  box-shadow: var(--sh-focus);
+}
+.fz-form-screen input[type="color"]::-webkit-color-swatch-wrapper,
+.fz-drawer__body input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.fz-form-screen input[type="color"]::-webkit-color-swatch,
+.fz-drawer__body input[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--field-radius, var(--r-2)) - 2px);
+}
+.fz-form-screen input[type="color"]::-moz-color-swatch,
+.fz-drawer__body input[type="color"]::-moz-color-swatch {
+  border: 0;
+  border-radius: calc(var(--field-radius, var(--r-2)) - 2px);
+}
+
+/* ---------- File upload (forms.css .fz-droparea) ----------
+   Markup: <input type="file" name="fileupload_...">
+   No drop-zone wrapper exists, so style the native file input to
+   read as the design's drop area: a dashed surface whose
+   "Choose file" button picks up the accent treatment. */
+
+.fz-form-screen input[type="file"],
+.fz-drawer__body input[type="file"] {
+  display: block;
+  width: 100%;
+  max-width: 460px;
+  padding: 14px 16px;
+  font-size: var(--field-text, var(--fs-14));
+  color: var(--c-text-muted);
+  background: var(--c-surface-2);
+  border: 1.5px dashed var(--c-border-strong);
+  border-radius: var(--field-radius, var(--r-2));
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
+}
+.fz-form-screen input[type="file"]:hover,
+.fz-drawer__body input[type="file"]:hover {
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+}
+.fz-form-screen input[type="file"]:focus-visible,
+.fz-drawer__body input[type="file"]:focus-visible {
+  outline: none;
+  border-color: var(--c-accent);
+  box-shadow: var(--sh-focus);
+}
+/* The native "Choose file" button — styled as a secondary chip */
+.fz-form-screen input[type="file"]::file-selector-button,
+.fz-drawer__body input[type="file"]::file-selector-button {
+  margin-right: 12px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-2);
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+.fz-form-screen input[type="file"]::file-selector-button:hover,
+.fz-drawer__body input[type="file"]::file-selector-button:hover {
+  background: var(--c-surface-3);
+  border-color: var(--c-text-muted);
+}
+/* WebKit legacy alias for the file button */
+.fz-form-screen input[type="file"]::-webkit-file-upload-button,
+.fz-drawer__body input[type="file"]::-webkit-file-upload-button {
+  margin-right: 12px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-2);
+  cursor: pointer;
+}
+
+/* ---------- Multi-select / listbox (forms.css .fz-listbox) ----------
+   Markup: <select multiple size="5"> — the base rule already gives it
+   surface + border + auto height. Here we refine the option rows to
+   match the design's .fz-listbox__item (padded rows, accent-soft
+   selected state) within form contexts. */
+
+.fz-form-screen select[multiple],
+.fz-form-screen select[size]:not([size="1"]),
+.fz-drawer__body select[multiple],
+.fz-drawer__body select[size]:not([size="1"]) {
+  height: auto;
+  max-height: 180px;
+  padding: 4px;
+  background-image: none;
+}
+.fz-form-screen select[multiple] option,
+.fz-form-screen select[size]:not([size="1"]) option,
+.fz-drawer__body select[multiple] option,
+.fz-drawer__body select[size]:not([size="1"]) option {
+  padding: 6px 10px;
+  border-radius: var(--r-2);
+  font-size: var(--field-text, var(--fs-14));
+  color: var(--c-text);
+}
+.fz-form-screen select[multiple] option:checked,
+.fz-form-screen select[size]:not([size="1"]) option:checked,
+.fz-drawer__body select[multiple] option:checked,
+.fz-drawer__body select[size]:not([size="1"]) option:checked {
+  background: var(--c-accent-soft) linear-gradient(var(--c-accent-soft), var(--c-accent-soft));
+  color: var(--c-text);
+  font-weight: 500;
+}
+
+/* ---------- Error state for the new control types ----------
+   Mirrors forms.css `.fz-field--error` extending to range/color/file. */
+.fz-field--error input[type="color"],
+.fz-field--error input[type="file"] {
+  border-color: var(--c-danger);
+}
+.fz-field--error input[type="range"]::-webkit-slider-thumb { border-color: var(--c-danger); }
+.fz-field--error input[type="range"]::-moz-range-thumb { border-color: var(--c-danger); }
+
+/* ============================================================
    Mobile — form screen adjustments
    ============================================================ */
 
