@@ -997,6 +997,50 @@ textarea {
   pointer-events: none;
 }
 
+/* Desktop "go to page" control — hidden on mobile, shown on ≥769px */
+.fz-pagination__goto {
+  display: none; /* hidden by default; enabled for desktop below */
+}
+
+@media (min-width: 769px) {
+  .fz-pagination__goto {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+  }
+
+  .fz-pagination__goto-label {
+    font-size: var(--fs-13);
+    color: var(--c-text-muted);
+    white-space: nowrap;
+  }
+
+  .fz-pagination__goto-input {
+    width: 3.5rem;
+    padding: 2px var(--s-2);
+    font-size: var(--fs-13);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--c-surface);
+    color: var(--c-text);
+    text-align: center;
+    -moz-appearance: textfield; /* hide Firefox spin buttons */
+    appearance: textfield;
+  }
+
+  .fz-pagination__goto-input::-webkit-inner-spin-button,
+  .fz-pagination__goto-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .fz-pagination__goto-input:focus {
+    outline: 2px solid var(--c-focus, var(--c-primary));
+    outline-offset: 1px;
+    border-color: transparent;
+  }
+}
+
 /* ============================================================
    List body — scrollable table container
    ============================================================ */
