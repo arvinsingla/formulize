@@ -2058,16 +2058,33 @@ textarea.fz-control {
    (The prior pass targeted input[type=submit] / input[name=submit] which match
    NOTHING here — that is why the buttons rendered as unstyled browser default.)
    Style the bar like the design's sticky-actions row and give the buttons the
-   `.fz-btn` look: Save-family = accent primary, Close = bordered secondary. */
+   `.fz-btn` look: Save-family = accent primary, Close = bordered secondary.
+
+   Sticky footer (issue #9): on long full-page form screens the action bar pins
+   to the bottom of the viewport while the form body scrolls, mirroring the list
+   screen's `.fz-list__footer` and the right-drawer's `.fz-drawer__foot`. The
+   scroll parent is `.fz-main` (overflow:auto); every ancestor between it and
+   `#multipage-controls` (#formulizeform > form.formulizeThemeForm) has
+   overflow:visible, so `position:sticky; bottom:0` resolves against `.fz-main`
+   and stays inside the same horizontal bounds as the card above it. A solid
+   surface background + top border keep scrolled fields from showing through.
+   The drawer builds its own footer (`.fz-drawer__foot`) from a separate
+   elements-only endpoint, so its body never contains `#multipage-controls` —
+   this rule is scoped to the full-page form and leaves the drawer untouched. */
 
 #multipage-controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--s-2, 8px);
-  padding-top: var(--s-4, 16px);
+  padding: var(--s-4, 16px) var(--s-6, 24px);
   margin-top: var(--s-2, 8px);
   border-top: 1px solid var(--c-border);
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  background: var(--c-surface);
+  box-shadow: 0 -1px 0 var(--c-border), var(--sh-2);
 }
 
 /* NOTE: Formulize core (modules/formulize/templates/css/formulize.css) styles
