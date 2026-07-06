@@ -997,47 +997,42 @@ textarea {
   pointer-events: none;
 }
 
-/* Desktop "go to page" control — hidden on mobile, shown on ≥769px */
-.fz-pagination__goto {
+/* Desktop numbered page links — hidden on mobile (the compact "X of Y" status
+   is shown there instead), shown as a row of clickable page numbers on ≥769px. */
+.fz-pagination__pages {
   display: none; /* hidden by default; enabled for desktop below */
 }
 
 @media (min-width: 769px) {
-  .fz-pagination__goto {
+  .fz-pagination__pages {
     display: flex;
     align-items: center;
-    gap: var(--s-2);
+    gap: var(--s-1);
   }
 
-  .fz-pagination__goto-label {
-    font-size: var(--fs-13);
+  /* On desktop the numbered links replace the compact "Page X of Y" status. */
+  .fz-pagination__status {
+    display: none;
+  }
+
+  .fz-pagination__page {
+    min-width: 26px;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fz-pagination__page--active {
+    background: var(--c-accent);
+    border-color: var(--c-accent);
+    color: var(--c-text-on-accent);
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .fz-pagination__ellipsis {
+    padding: 0 var(--s-1);
     color: var(--c-text-muted);
-    white-space: nowrap;
-  }
-
-  .fz-pagination__goto-input {
-    width: 3.5rem;
-    padding: 2px var(--s-2);
-    font-size: var(--fs-13);
-    border: 1px solid var(--c-border);
-    border-radius: var(--radius-sm, 4px);
-    background: var(--c-surface);
-    color: var(--c-text);
-    text-align: center;
-    -moz-appearance: textfield; /* hide Firefox spin buttons */
-    appearance: textfield;
-  }
-
-  .fz-pagination__goto-input::-webkit-inner-spin-button,
-  .fz-pagination__goto-input::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-
-  .fz-pagination__goto-input:focus {
-    outline: 2px solid var(--c-focus, var(--c-primary));
-    outline-offset: 1px;
-    border-color: transparent;
+    user-select: none;
   }
 }
 
