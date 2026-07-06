@@ -31,12 +31,14 @@ if ($searchesShown) {
       </button>";
 }
 
-// Only render the "…" trigger and the action panel when there are menu items to show.
-if ($moreActionsButton) {
-  $hasEntriesSection = ($addMultiButton OR $addProxyButton OR $importButton OR $exportButton);
-  $hasViewSection    = ($changeColsButton OR $saveViewButton OR $resetViewButton OR $deleteViewButton);
-  $hasOtherSection   = ($calcButton OR $proceduresButton OR $notifButton);
+// Only render the "…" trigger and the action panel when there is at least one
+// actual item to show inside it. $moreActionsButton holds the trigger markup and
+// is effectively always truthy here, so gate on the panel's section contents.
+$hasEntriesSection = ($addMultiButton OR $addProxyButton OR $importButton OR $exportButton);
+$hasViewSection    = ($changeColsButton OR $saveViewButton OR $resetViewButton OR $deleteViewButton);
+$hasOtherSection   = ($calcButton OR $proceduresButton OR $notifButton);
 
+if ($moreActionsButton AND ($hasEntriesSection OR $hasViewSection OR $hasOtherSection)) {
   print "
       <div class='fz-list__more-wrap'>
         $moreActionsButton
