@@ -2101,6 +2101,26 @@ body:not(.fz-inline) .fz-main:has(> #formulizeform .formulizeThemeForm #multipag
   flex-direction: column;
 }
 
+/* ---------- Horizontal gutter for form-screen content (review item B) ----------
+   `.fz-form-screen` (the form card), `#pageNavTable` (the multipage page-nav
+   strip) and `#multipage-controls` (the action bar) are siblings laid out full
+   width inside `.fz-main`, so they butted flush against the left/right container
+   edges. Inset all three by the same outer gutter (--s-5, 20px — the same
+   horizontal gutter the list-screen title/footer bars use) so they breathe from
+   the container sides and stay visually aligned with each other.
+   Scoped to `body:not(.fz-inline) .fz-main` (the same guard the sticky action-bar
+   fix uses): list screens have no `.fz-form-screen`, and when a form renders in
+   the right drawer / inline iframe (`.fz-inline`, body padded by
+   `.fz-drawer__body { padding: --s-5 }`) we must NOT add a second gutter — so the
+   drawer and its `.fz-drawer__foot` are unaffected. */
+body:not(.fz-inline) .fz-main .fz-form-screen,
+body:not(.fz-inline) .fz-main #pageNavTable,
+body:not(.fz-inline) .fz-main .pageNavTable,
+body:not(.fz-inline) .fz-main #multipage-controls {
+  margin-left: var(--s-5, 20px);
+  margin-right: var(--s-5, 20px);
+}
+
 #multipage-controls {
   display: flex;
   flex-wrap: wrap;
@@ -2659,20 +2679,17 @@ input[type="time"] { font-family: var(--font-sans); }
     font-feature-settings: "tnum";
   }
 
-  /* Jump-to selector on its own full-width line; select fills the row. */
+  /* Jump-to selector removed on mobile (review item A): on narrow screens it
+     took a full-width extra row and ate vertical space for little value. Desktop
+     keeps it (the desktop #page-selector rules above are untouched). The prev/
+     next buttons and the "Page X of Y" indicator remain the mobile page-nav. */
   #multipage-controls #page-selector {
-    flex-basis: 100%;
-    order: 91;
-    display: flex;
-    align-items: center;
-    gap: var(--s-2);
-    font-size: var(--fs-13);
-    color: var(--c-text-muted);
+    display: none;
   }
 
-  #multipage-controls #page-selector select {
-    flex: 1;
-    min-width: 0;
-    height: 44px;
+  /* With the selector gone, drop the indicator's top margin so the freed
+     vertical space is reclaimed and the bar stays compact. */
+  #multipage-controls #page-indicator {
+    margin-top: 0;
   }
 }
