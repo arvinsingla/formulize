@@ -2102,12 +2102,19 @@ body:not(.fz-inline) .fz-main:has(> #formulizeform .formulizeThemeForm #multipag
 }
 
 /* ---------- Horizontal gutter for form-screen content (review item B) ----------
-   `.fz-form-screen` (the form card), `#pageNavTable` (the multipage page-nav
-   strip) and `#multipage-controls` (the action bar) are siblings laid out full
-   width inside `.fz-main`, so they butted flush against the left/right container
-   edges. Inset all three by the same outer gutter (--s-5, 20px — the same
-   horizontal gutter the list-screen title/footer bars use) so they breathe from
-   the container sides and stay visually aligned with each other.
+   `.fz-form-screen` (the form card) and `#pageNavTable` (the multipage page-nav
+   strip) are laid out full width inside `.fz-main`, so they butted flush against
+   the left/right container edges. Inset them by the same outer gutter (--s-5,
+   20px — the same horizontal gutter the list-screen title/footer bars use) so
+   they breathe from the container sides and stay visually aligned with each other.
+
+   Deliberately EXCLUDED: `#multipage-controls` (the bottom-anchored action bar).
+   Like the list-screen sticky footer (`.fz-list__footer`) and the drawer footer
+   (`.fz-drawer__foot`), that bar is meant to be full-bleed — it spans edge-to-edge
+   of `.fz-main` with its own inner `padding` (var(--s-4) var(--s-6)) providing the
+   content inset. Adding a side margin here gave it an unwanted gutter, so it is
+   left out of this rule.
+
    Scoped to `body:not(.fz-inline) .fz-main` (the same guard the sticky action-bar
    fix uses): list screens have no `.fz-form-screen`, and when a form renders in
    the right drawer / inline iframe (`.fz-inline`, body padded by
@@ -2115,8 +2122,7 @@ body:not(.fz-inline) .fz-main:has(> #formulizeform .formulizeThemeForm #multipag
    drawer and its `.fz-drawer__foot` are unaffected. */
 body:not(.fz-inline) .fz-main .fz-form-screen,
 body:not(.fz-inline) .fz-main #pageNavTable,
-body:not(.fz-inline) .fz-main .pageNavTable,
-body:not(.fz-inline) .fz-main #multipage-controls {
+body:not(.fz-inline) .fz-main .pageNavTable {
   margin-left: var(--s-5, 20px);
   margin-right: var(--s-5, 20px);
 }

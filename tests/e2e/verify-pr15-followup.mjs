@@ -1,7 +1,8 @@
 // Verify PR #15 followup (review 2026-07-08):
 //   Item A: mobile multipage action bar hides the jump-to-page selector; desktop keeps it.
-//   Item B: .fz-form-screen, #pageNavTable and #multipage-controls have a horizontal
-//           gutter from the .fz-main container edges; no horizontal scrollbar introduced.
+//   Item B: .fz-form-screen and #pageNavTable have a horizontal gutter from the
+//           .fz-main container edges; #multipage-controls is FULL-BLEED (no gutter,
+//           review 2026-07-08 15:46Z); no horizontal scrollbar introduced.
 // Also re-confirms the sticky action bar (issue #9) still pins and the list footer /
 // drawer foot are unaffected.
 // Run from tests/e2e:  node verify-pr15-followup.mjs
@@ -61,7 +62,10 @@ const check = (name, cond, extra='') => { console.log(`${cond ? 'PASS' : 'FAIL'}
     check('desktop: #pageNavTable right gutter', m.main.right - m.pageNav.right === G, `${m.main.right - m.pageNav.right}px`);
   }
   if (m.main && m.controls) {
-    check('desktop: #multipage-controls left gutter', m.controls.x - m.main.x === G, `${m.controls.x - m.main.x}px`);
+    // Review 2026-07-08 15:46Z: the bottom action bar must be FULL-BLEED (edge-to-edge
+    // of .fz-main, like .fz-list__footer / .fz-drawer__foot) — NO side gutter.
+    check('desktop: #multipage-controls full-bleed left (no gutter)', Math.abs(m.controls.x - m.main.x) <= 1, `left offset=${m.controls.x - m.main.x}px`);
+    check('desktop: #multipage-controls full-bleed right (no gutter)', Math.abs(m.main.right - m.controls.right) <= 1, `right offset=${m.main.right - m.controls.right}px`);
   }
   check('desktop: jump-to-page (#page-selector) still VISIBLE', m.pageSelectorVisible === true);
   check('desktop: no horizontal scrollbar', m.docScrollW <= m.winInner, `scrollW=${m.docScrollW} inner=${m.winInner}`);
@@ -81,6 +85,35 @@ const check = (name, cond, extra='') => { console.log(`${cond ? 'PASS' : 'FAIL'}
   await page.context().close();
 }
 
+// ---------- LONG FORM on a SHORT viewport: bar pins at viewport bottom while body scrolls ----------
+{
+  const page = await loginCtx({ width: 1200, height: 400 });
+  await page.goto(FORM_URL);
+  await page.waitForLoadState('networkidle');
+  const before = await page.evaluate(() => {
+    const bar = document.querySelector('#multipage-controls');
+    return { scrollable: document.documentElement.scrollHeight > window.innerHeight, barBottom: bar ? Math.round(bar.getBoundingClientRect().bottom) : null };
+  });
+  // scroll the body down
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(150);
+  const after = await page.evaluate(() => {
+    const bar = document.querySelector('#multipage-controls');
+    const main = document.querySelector('.fz-main');
+    if(!bar||!main) return null;
+    const bb = bar.getBoundingClientRect(), mb = main.getBoundingClientRect();
+    return { barBottom: Math.round(bb.bottom), mainBottom: Math.round(mb.bottom), winInner: window.innerHeight, leftOffset: Math.round(bb.x - mb.x), rightOffset: Math.round(mb.right - bb.right) };
+  });
+  console.log('\n=== LONG FORM / SHORT VIEWPORT (1200x400) ===');
+  console.log('before scroll:', JSON.stringify(before), 'after scroll:', JSON.stringify(after));
+  if (after) {
+    // bar stays pinned near the bottom of the visible .fz-main / viewport after scrolling
+    check('long form: bar pinned at bottom of .fz-main after scroll', Math.abs(after.mainBottom - after.barBottom) <= 2, `diff=${after.mainBottom - after.barBottom}px`);
+    check('long form: bar still full-bleed after scroll', Math.abs(after.leftOffset) <= 1 && Math.abs(after.rightOffset) <= 1, `L=${after.leftOffset} R=${after.rightOffset}`);
+  }
+  await page.context().close();
+}
+
 // ---------- MOBILE (390px) ----------
 {
   const page = await loginCtx({ width: 390, height: 844 });
@@ -89,7 +122,9 @@ const check = (name, cond, extra='') => { console.log(`${cond ? 'PASS' : 'FAIL'}
 
   const m = await page.evaluate(() => {
     const vis = (s) => { const e=document.querySelector(s); if(!e) return {exists:false}; const st=getComputedStyle(e); const b=e.getBoundingClientRect(); return {exists:true, display:st.display, visible: st.display!=='none' && b.height>0}; };
+    const off = () => { const bar=document.querySelector('#multipage-controls'); const main=document.querySelector('.fz-main'); if(!bar||!main) return null; const bb=bar.getBoundingClientRect(), mb=main.getBoundingClientRect(); return { left: Math.round(bb.x - mb.x), right: Math.round(mb.right - bb.right) }; };
     return {
+      controlsOffset: off(),
       pageSelector: vis('#page-selector'),
       pageIndicator: vis('#page-indicator'),
       prevVisible: !!document.querySelector('#multipage-controls #prev, #multipage-controls .formulize-form-submit-button'),
@@ -106,6 +141,7 @@ const check = (name, cond, extra='') => { console.log(`${cond ? 'PASS' : 'FAIL'}
   check('mobile: prev/next buttons still present', m.prevVisible === true);
   check('mobile: indicator top margin reclaimed (0)', m.indicatorMarginTop === '0px', `marginTop=${m.indicatorMarginTop}`);
   check('mobile: no horizontal scrollbar', m.docScrollW <= m.winInner, `scrollW=${m.docScrollW} inner=${m.winInner}`);
+  if (m.controlsOffset) check('mobile: #multipage-controls full-bleed (no gutter)', Math.abs(m.controlsOffset.left) <= 1 && Math.abs(m.controlsOffset.right) <= 1, `L=${m.controlsOffset.left} R=${m.controlsOffset.right}`);
 
   await page.screenshot({ path: 'pr15-mobile.png', fullPage: false });
   await page.context().close();
