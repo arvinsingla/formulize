@@ -2748,17 +2748,14 @@ input[type="time"] { font-family: var(--font-sans); }
    the design's `.fz-combo__tags`, and present each `.auto_multi` <p> as a
    removable chip (`.fz-combo__tag`). Chips are clickable to remove (core JS). */
 
-/* The input wrapper (.formulize_autocomplete div) becomes the bordered combo
-   field; the magnifier is a SIBLING <img> that follows the wrapper in the DOM.
-   Make the field body the positioning context so the icon can be pinned as an
-   absolute adornment over the input's right edge (it must not participate in
-   normal flow, or a full-width block wrapper forces it to wrap to a new line). */
-.fz-form-screen .fz-field__body:has(> .formulize_autocomplete),
-.fz-drawer__body .col2:has(> .formulize_autocomplete) {
-  display: block;
-  position: relative;
-}
-
+/* The input wrapper (div.formulize_autocomplete) is the positioning context for
+   the magnifier. Core now renders the <img class="autocomplete-icon"> INSIDE this
+   wrapper (a child of the div, immediately after the input) so the icon can be
+   pinned as an absolute adornment over the input's right edge WITHOUT relying on
+   a :has() selector — :has() is unsupported on older engines, and when it fails
+   the icon falls back to normal flow and wraps onto its own line below the field
+   (the reported regression). Anchoring to this always-present relative wrapper is
+   robust across all engines. */
 .fz-form-screen .formulize_autocomplete:not(input),
 .fz-drawer__body .formulize_autocomplete:not(input) {
   position: relative;
@@ -2791,14 +2788,14 @@ input[type="time"] { font-family: var(--font-sans); }
 }
 
 /* The magnifying-glass image → a muted icon pinned inside the field's right edge.
-   Because the <img> is a sibling of the full-width block wrapper, it would wrap
-   onto its own line in normal flow. Take it out of flow and absolutely position
-   it over the first row (the text input) of the relatively-positioned field body,
-   vertically centred within the input height (--field-h). */
-.fz-form-screen .fz-field__body:has(> .formulize_autocomplete) img.autocomplete-icon,
-.fz-drawer__body .col2:has(> .formulize_autocomplete) img.autocomplete-icon {
+   The icon is a child of the relatively-positioned div.formulize_autocomplete
+   wrapper, so absolute positioning resolves against that wrapper regardless of
+   :has() support. Centre it vertically over the input row and inset from the
+   right edge. Reset any width the native <img> would otherwise assume. */
+.fz-form-screen .formulize_autocomplete img.autocomplete-icon,
+.fz-drawer__body .formulize_autocomplete img.autocomplete-icon {
   position: absolute;
-  top: calc(var(--field-h) / 2);
+  top: 50%;
   right: 12px;
   transform: translateY(-50%);
   width: 15px;
@@ -2806,6 +2803,7 @@ input[type="time"] { font-family: var(--font-sans); }
   margin: 0;
   opacity: 0.55;
   pointer-events: none;
+  float: none;
 }
 
 /* The selected-values chip tray → design's chip row. */
