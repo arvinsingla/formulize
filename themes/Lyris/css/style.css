@@ -1117,6 +1117,10 @@ textarea {
   top: 36px;
   z-index: 2;
   background: var(--c-surface-2);
+  /* Vertical breathing room so the filter inputs aren't flush against the
+     row edges; keep the base horizontal --row-pad-x. */
+  padding-top: var(--s-2);
+  padding-bottom: var(--s-2);
 }
 
 .fz-search-row .main-cell-div {
