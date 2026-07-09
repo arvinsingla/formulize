@@ -2748,17 +2748,22 @@ input[type="time"] { font-family: var(--font-sans); }
    the design's `.fz-combo__tags`, and present each `.auto_multi` <p> as a
    removable chip (`.fz-combo__tag`). Chips are clickable to remove (core JS). */
 
-/* The input wrapper becomes the bordered combo field; the magnifier sits inside
-   it on the right. Wrapper + icon are laid out as one row via the field body. */
+/* The input wrapper (.formulize_autocomplete div) becomes the bordered combo
+   field; the magnifier is a SIBLING <img> that follows the wrapper in the DOM.
+   Make the field body the positioning context so the icon can be pinned as an
+   absolute adornment over the input's right edge (it must not participate in
+   normal flow, or a full-width block wrapper forces it to wrap to a new line). */
 .fz-form-screen .fz-field__body:has(> .formulize_autocomplete),
 .fz-drawer__body .col2:has(> .formulize_autocomplete) {
   display: block;
+  position: relative;
 }
 
 .fz-form-screen .formulize_autocomplete:not(input),
 .fz-drawer__body .formulize_autocomplete:not(input) {
   position: relative;
   display: block;
+  width: 100%;
 }
 
 /* The autocomplete text input → a clean full-width field, room for the icon. */
@@ -2785,17 +2790,20 @@ input[type="time"] { font-family: var(--font-sans); }
   box-shadow: var(--sh-focus);
 }
 
-/* The magnifying-glass image → a muted icon pinned to the right of the input.
-   It immediately follows the .formulize_autocomplete wrapper in the DOM, so
-   pull it up over the input's right padding. */
-.fz-form-screen img.autocomplete-icon,
-.fz-drawer__body img.autocomplete-icon {
+/* The magnifying-glass image → a muted icon pinned inside the field's right edge.
+   Because the <img> is a sibling of the full-width block wrapper, it would wrap
+   onto its own line in normal flow. Take it out of flow and absolutely position
+   it over the first row (the text input) of the relatively-positioned field body,
+   vertically centred within the input height (--field-h). */
+.fz-form-screen .fz-field__body:has(> .formulize_autocomplete) img.autocomplete-icon,
+.fz-drawer__body .col2:has(> .formulize_autocomplete) img.autocomplete-icon {
+  position: absolute;
+  top: calc(var(--field-h) / 2);
+  right: 12px;
+  transform: translateY(-50%);
   width: 15px;
   height: 15px;
-  margin: 0 0 0 -30px;
-  vertical-align: middle;
-  position: relative;
-  top: -1px;
+  margin: 0;
   opacity: 0.55;
   pointer-events: none;
 }
