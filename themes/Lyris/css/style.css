@@ -239,6 +239,15 @@ body {
   background: var(--c-bg);
 }
 
+/* Simple / system pages (login, register, lostpass, ...) drop their raw
+   content straight into .fz-main with no wrapper, so it butts against the
+   viewport edge. Give those pages a horizontal (and top) gutter. Formulize
+   app/list screens (body#formulize) are full-bleed by design — the titlebar,
+   list body and pagination manage their own insets — so they're excluded. */
+body:not(#formulize) .fz-main {
+  padding: var(--s-6) var(--s-6) 0;
+}
+
 /* Inline / drawer-iframe mode — header and sidebar suppressed via theme.html */
 .fz-inline .fz-app {
   height: auto;
@@ -3096,9 +3105,12 @@ input[type="button"]:not([class*="fz-"]):disabled {
   font-size: var(--fs-14);
 }
 
-/* Login page: turn the raw fieldset/legend into a Lyris card. */
-fieldset#icms_block_login_form {
-  max-width: 380px;
+/* Generalized fieldset card. Any raw <fieldset> in the Lyris content area
+   (the login page's #icms_block_login_form, plus any other fieldset in the
+   end-user UI) gets the same card treatment: border, radius, padding,
+   surface background and a styled legend. Scoped to .fz-main so it only
+   touches theme content, not chrome. */
+.fz-main fieldset {
   margin: var(--s-6) 0;
   padding: var(--s-6);
   border: 1px solid var(--c-border);
@@ -3107,7 +3119,12 @@ fieldset#icms_block_login_form {
   box-shadow: var(--sh-2);
 }
 
-fieldset#icms_block_login_form > legend {
+/* The login fieldset stays a compact, single-column card. */
+fieldset#icms_block_login_form {
+  max-width: 380px;
+}
+
+.fz-main fieldset > legend {
   padding: 0 var(--s-2);
   font-size: var(--fs-16);
   font-weight: 600;
