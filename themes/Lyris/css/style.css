@@ -2085,19 +2085,106 @@ textarea.fz-control {
   line-height: 1.9;        /* vertical rhythm between <br>-separated options */
 }
 
+/* Custom choice glyph — replaces the browser's native radio/checkbox with the
+   design's `.fz-choice__box`: an 18px rounded box (circle for radios) that fills
+   with the accent when checked. We drive it entirely off the real
+   `<input type=radio|checkbox>` element (appearance:none) so no wrapper markup
+   is required — the glyph, the checked state, hover and focus ring all render
+   from pseudo-elements on the input itself. */
 .fz-form-screen .col2 input[type="radio"],
 .fz-form-screen .col2 input[type="checkbox"],
 .fz-form-screen .fz-field__body input[type="radio"],
 .fz-form-screen .fz-field__body input[type="checkbox"],
 .fz-drawer__body .col2 input[type="radio"],
 .fz-drawer__body .col2 input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
   display: inline-block;
-  width: auto !important;
-  height: auto;
+  width: 18px !important;
+  height: 18px;
   margin: 0 8px 0 0;       /* 8px gap between control and its label */
-  vertical-align: middle;
-  accent-color: var(--c-accent);
+  padding: 0;
+  flex: none;
+  vertical-align: -4px;
+  border: 1.5px solid var(--c-border-strong);
+  border-radius: var(--r-1);
+  background: var(--c-surface);
   cursor: pointer;
+  transition: background var(--dur-1) var(--ease),
+              border-color var(--dur-1) var(--ease),
+              box-shadow var(--dur-1) var(--ease);
+}
+.fz-form-screen .col2 input[type="radio"],
+.fz-form-screen .fz-field__body input[type="radio"],
+.fz-drawer__body .col2 input[type="radio"] {
+  border-radius: 50%;
+}
+/* Checkbox tick — a rotated pen stroke drawn with a pseudo-element. */
+.fz-form-screen .col2 input[type="checkbox"]::after,
+.fz-form-screen .fz-field__body input[type="checkbox"]::after,
+.fz-drawer__body .col2 input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid var(--c-text-on-accent);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform var(--dur-1) var(--ease);
+}
+/* Radio dot. */
+.fz-form-screen .col2 input[type="radio"]::after,
+.fz-form-screen .fz-field__body input[type="radio"]::after,
+.fz-drawer__body .col2 input[type="radio"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-text-on-accent);
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform var(--dur-1) var(--ease);
+}
+.fz-form-screen .col2 input[type="radio"]:checked,
+.fz-form-screen .col2 input[type="checkbox"]:checked,
+.fz-form-screen .fz-field__body input[type="radio"]:checked,
+.fz-form-screen .fz-field__body input[type="checkbox"]:checked,
+.fz-drawer__body .col2 input[type="radio"]:checked,
+.fz-drawer__body .col2 input[type="checkbox"]:checked {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+}
+.fz-form-screen .col2 input[type="checkbox"]:checked::after,
+.fz-form-screen .fz-field__body input[type="checkbox"]:checked::after,
+.fz-drawer__body .col2 input[type="checkbox"]:checked::after {
+  transform: rotate(45deg) scale(1);
+}
+.fz-form-screen .col2 input[type="radio"]:checked::after,
+.fz-form-screen .fz-field__body input[type="radio"]:checked::after,
+.fz-drawer__body .col2 input[type="radio"]:checked::after {
+  transform: translate(-50%, -50%) scale(1);
+}
+.fz-form-screen .col2 input[type="radio"]:hover:not(:checked),
+.fz-form-screen .col2 input[type="checkbox"]:hover:not(:checked),
+.fz-form-screen .fz-field__body input[type="radio"]:hover:not(:checked),
+.fz-form-screen .fz-field__body input[type="checkbox"]:hover:not(:checked),
+.fz-drawer__body .col2 input[type="radio"]:hover:not(:checked),
+.fz-drawer__body .col2 input[type="checkbox"]:hover:not(:checked) {
+  border-color: var(--c-text-muted);
+}
+.fz-form-screen .col2 input[type="radio"]:focus-visible,
+.fz-form-screen .col2 input[type="checkbox"]:focus-visible,
+.fz-form-screen .fz-field__body input[type="radio"]:focus-visible,
+.fz-form-screen .fz-field__body input[type="checkbox"]:focus-visible,
+.fz-drawer__body .col2 input[type="radio"]:focus-visible,
+.fz-drawer__body .col2 input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: var(--sh-focus);
 }
 
 /* The option label sits inline next to its control with comfortable spacing. */
@@ -2964,6 +3051,84 @@ input[type="time"] { font-family: var(--font-sans); }
 }
 
 /* ============================================================
+   Rich-text (WYSIWYG) editor → Lyris field anatomy
+   ------------------------------------------------------------
+   The "Multi-line Textbox / WYSIWYG" element renders a CKEditor 5
+   instance (`.ck-editor` with a `.ck-toolbar` + `.ck-content`
+   editable). Out of the box CKEditor ships its own greys, radii
+   and 1px borders that clash with the surrounding fields. Re-skin
+   its shell to the shared field tokens so the toolbar reads as the
+   top of the field, the editable as a textarea body, and the whole
+   control picks up the same border / radius / focus ring as every
+   other single-line control. CKEditor exposes theming vars — set
+   them, then patch the few surfaces the vars don't reach. Scoped to
+   the form-screen / drawer contexts so any editor elsewhere is left
+   alone. */
+.fz-form-screen .ck.ck-editor,
+.fz-drawer__body .ck.ck-editor {
+  --ck-border-radius: var(--field-radius, var(--r-2));
+  --ck-color-base-border: var(--c-border-strong);
+  --ck-color-toolbar-border: var(--c-border-strong);
+  --ck-color-toolbar-background: var(--c-surface-2);
+  --ck-color-base-background: var(--c-surface);
+  --ck-color-text: var(--c-text);
+  --ck-color-button-default-hover-background: var(--c-surface-3);
+  --ck-color-button-on-background: var(--c-accent-soft);
+  --ck-color-button-on-color: var(--c-accent-fg);
+  --ck-color-focus-border: var(--c-border-focus);
+  --ck-focus-ring: 1px solid var(--c-border-focus);
+  --ck-inner-shadow: none;
+  --ck-font-face: var(--font-sans);
+  max-width: 720px;
+}
+
+/* Toolbar → top of the field: surface-2 fill, strong border, top radii only. */
+.fz-form-screen .ck.ck-editor .ck.ck-toolbar,
+.fz-drawer__body .ck.ck-editor .ck.ck-toolbar {
+  background: var(--c-surface-2);
+  border-color: var(--c-border-strong);
+  border-top-left-radius: var(--field-radius, var(--r-2));
+  border-top-right-radius: var(--field-radius, var(--r-2));
+  padding: 4px 6px;
+}
+.fz-form-screen .ck.ck-editor .ck.ck-toolbar .ck-button,
+.fz-drawer__body .ck.ck-editor .ck.ck-toolbar .ck-button {
+  color: var(--c-text-muted);
+  border-radius: var(--r-1);
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.fz-form-screen .ck.ck-editor .ck.ck-toolbar .ck-button:not(.ck-disabled):hover,
+.fz-drawer__body .ck.ck-editor .ck.ck-toolbar .ck-button:not(.ck-disabled):hover {
+  background: var(--c-surface-3);
+  color: var(--c-text);
+}
+.fz-form-screen .ck.ck-editor .ck.ck-toolbar .ck-button.ck-on,
+.fz-drawer__body .ck.ck-editor .ck.ck-toolbar .ck-button.ck-on {
+  background: var(--c-accent-soft);
+  color: var(--c-accent-fg);
+}
+
+/* Editable body → textarea look: surface fill, matching border + bottom radii. */
+.fz-form-screen .ck.ck-editor .ck.ck-content.ck-editor__editable,
+.fz-drawer__body .ck.ck-editor .ck.ck-content.ck-editor__editable {
+  min-height: calc(var(--field-h, 38px) * 2.4);
+  padding: 10px var(--field-pad-x, 12px);
+  font-size: var(--field-text, var(--fs-14));
+  line-height: var(--lh-base);
+  color: var(--c-text);
+  background: var(--c-surface);
+  border-color: var(--c-border-strong);
+  border-bottom-left-radius: var(--field-radius, var(--r-2));
+  border-bottom-right-radius: var(--field-radius, var(--r-2));
+}
+/* Whole control gets one focus ring when the editable is focused. */
+.fz-form-screen .ck.ck-editor .ck.ck-content.ck-editor__editable.ck-focused,
+.fz-drawer__body .ck.ck-editor .ck.ck-content.ck-editor__editable.ck-focused {
+  border-color: var(--c-border-focus);
+  box-shadow: var(--sh-focus);
+}
+
+/* ============================================================
    Mobile — form screen adjustments
    ============================================================ */
 
@@ -3004,6 +3169,41 @@ input[type="time"] { font-family: var(--font-sans); }
   .fz-drawer__body .formulize_autocomplete_selections .auto_multi {
     height: 30px;
     padding: 0 12px;
+  }
+
+  /* Radio / checkbox glyphs — a touch larger with more breathing room between
+     stacked options so they clear the 44px hit-target guidance on mobile. */
+  .fz-form-screen .col2 input[type="radio"],
+  .fz-form-screen .col2 input[type="checkbox"],
+  .fz-form-screen .fz-field__body input[type="radio"],
+  .fz-form-screen .fz-field__body input[type="checkbox"],
+  .fz-drawer__body .col2 input[type="radio"],
+  .fz-drawer__body .col2 input[type="checkbox"] {
+    width: 22px !important;
+    height: 22px;
+    vertical-align: -6px;
+  }
+  .fz-form-screen .col2 input[type="checkbox"]::after,
+  .fz-form-screen .fz-field__body input[type="checkbox"]::after,
+  .fz-drawer__body .col2 input[type="checkbox"]::after {
+    left: 6px;
+    top: 2px;
+    width: 6px;
+    height: 11px;
+  }
+  .fz-form-screen .fz-field__body:has(input[type="radio"]),
+  .fz-form-screen .fz-field__body:has(input[type="checkbox"]),
+  .fz-form-screen .col2:has(input[type="radio"]),
+  .fz-form-screen .col2:has(input[type="checkbox"]),
+  .fz-drawer__body .col2:has(input[type="radio"]),
+  .fz-drawer__body .col2:has(input[type="checkbox"]) {
+    line-height: 2.4;   /* taller rows = larger tap targets between options */
+  }
+
+  /* Rich-text editor toolbar buttons get comfortable touch targets. */
+  .fz-form-screen .ck.ck-toolbar .ck-button,
+  .fz-drawer__body .ck.ck-toolbar .ck-button {
+    min-height: 36px;
   }
 
   /* ---------- Mobile multipage action bar (issue #9, clutter) ----------
