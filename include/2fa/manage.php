@@ -68,6 +68,16 @@ function tfa_buildDialogMessage($scenario, $method, $contactDisplay, $codebox, $
 }
 
 function tfaDialogButtonStyles($buttonIds) {
+	global $xoopsConfig, $icmsConfig;
+	// This is the legacy Anari-theme button look (blue pill, uses --button-color which
+	// only Anari defines). It is emitted with #id !important rules that cannot be
+	// overridden from a theme stylesheet, so restrict it to the Anari theme and let
+	// every other theme (e.g. Lyris) style the dialog buttons via its own CSS.
+	$activeTheme = isset($xoopsConfig['theme_set']) ? $xoopsConfig['theme_set']
+		: (isset($icmsConfig['theme_set']) ? $icmsConfig['theme_set'] : '');
+	if($activeTheme !== 'Anari') {
+		return '';
+	}
 	$ids = (array)$buttonIds;
 	$selectors     = '#' . implode(', #', $ids);
 	$textSelectors = '#' . implode(' .ui-button-text, #', $ids) . ' .ui-button-text';
