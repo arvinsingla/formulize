@@ -2331,7 +2331,14 @@ body:not(.fz-inline) .fz-main .pageNavTable {
    user scrolls; elsewhere it degrades to an always-present hairline (no JS).
    Negative side margins on the ::after let the separator span the full width
    of the scroll area even though the strip itself keeps the 20px content
-   gutter shared with the form card. */
+   gutter shared with the form card.
+
+   `padding-bottom` matches `padding-top` (review feedback on PR #41): without
+   it the pills butted directly against the sticky region's bottom edge (and
+   the ::after separator sitting at bottom:0) while pinned, so the tabs had
+   breathing room above but none below. The `::after` separator still anchors
+   to `bottom:0` of this box, i.e. below the added padding, so it continues to
+   mark the true bottom edge of the sticky region. */
 body:not(.fz-inline) .fz-main #pageNavTable.pill-tabs {
   position: sticky;
   top: 0;
@@ -2341,6 +2348,7 @@ body:not(.fz-inline) .fz-main #pageNavTable.pill-tabs {
      flush at top:0 without a gap of scrolled content peeking above it */
   margin-top: 0;
   padding-top: var(--s-3, 12px);
+  padding-bottom: var(--s-3, 12px);
 }
 
 /* Bottom separator that fades in as content scrolls under the pinned tabs. */
