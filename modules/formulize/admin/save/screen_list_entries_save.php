@@ -83,8 +83,6 @@ $screen->setVar('useworkingmsg',(array_key_exists('useworkingmsg',$screens))?$sc
 $screen->setVar('usescrollbox',(array_key_exists('usescrollbox',$screens))?$screens['usescrollbox']:0);
 $screen->setVar('entriesperpage',$screens['entriesperpage']);
 $screen->setVar('viewentryscreen',$screens['viewentryscreen']);
-$editdestination = (isset($screens['editdestination']) AND $screens['editdestination'] === 'screen') ? 'screen' : 'drawer';
-$screen->setVar('editdestination', $editdestination);
 list($parsedFundamentalFilters, $_POST['reload_list_screen_page']) = parseSubmittedConditions('fundamentalfilters', 'ffdelete');
 $screen->setVar('fundamental_filters',serialize($parsedFundamentalFilters));
 

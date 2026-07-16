@@ -229,11 +229,6 @@ if ($screen_id != "new" && $settings['type'] == 'listOfEntries') {
   $entries['entriesperpage'] = $screen->getVar('entriesperpage');
   $entries['viewentryscreenoptions'] = $viewentryscreenOptions;
   $entries['viewentryscreen'] = $screen->getVar('viewentryscreen');
-  $entries['editdestinationoptions'] = array(
-    'drawer' => _AM_FORMULIZE_SCREEN_LOE_EDITDESTINATION_DRAWER,
-    'screen' => _AM_FORMULIZE_SCREEN_LOE_EDITDESTINATION_SCREEN,
-  );
-  $entries['editdestination'] = $screen->getVar('editdestination') ? $screen->getVar('editdestination') : 'drawer';
   $entries['frid'] = $settings['frid'];
 
   // add fundamental filter conditions... cannot have _ in the DOM element name (second param)
@@ -251,6 +246,11 @@ if ($screen_id != "new" && $settings['type'] == 'listOfEntries') {
   $headings['textwidth'] = $screen->getVar('textwidth');
   $headings['usecheckboxes'] = $screen->getVar('usecheckboxes');
   $headings['useviewentrylinks'] = $screen->getVar('useviewentrylinks');
+  $headings['editdestinationoptions'] = array(
+    'drawer' => _AM_FORMULIZE_SCREEN_LOE_EDITDESTINATION_DRAWER,
+    'screen' => _AM_FORMULIZE_SCREEN_LOE_EDITDESTINATION_SCREEN,
+  );
+  $headings['editdestination'] = $screen->getVar('editdestination') ? $screen->getVar('editdestination') : 'drawer';
   $headings['elementoptions'] = $elementOptions;
   $headings['hiddencolumns'] = $screen->getVar('hiddencolumns');
   $headings['decolumns'] = $screen->getVar('decolumns');
