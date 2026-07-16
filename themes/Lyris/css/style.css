@@ -2248,6 +2248,7 @@ body:not(.fz-inline) .fz-main #pageNavTable,
 body:not(.fz-inline) .fz-main .pageNavTable {
   margin-left: var(--s-5, 20px);
   margin-right: var(--s-5, 20px);
+	margin-bottom: 0;
 }
 
 #multipage-controls {
