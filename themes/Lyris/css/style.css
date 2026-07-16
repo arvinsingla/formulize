@@ -1147,46 +1147,6 @@ textarea {
   text-align: unset !important;
 }
 
-/* Long-text access in list cells (#33).
-   Data cells truncate to one line (overflow:hidden; text-overflow:ellipsis;
-   white-space:nowrap above) to keep rows tidy, which hides the tail of long
-   values. Two complementary affordances restore full access without disturbing
-   the default layout:
-
-   1. Every data cell carries a native `title` holding the FULL plain text (set in
-      getHTMLForList()). The complete value is therefore always reachable via the
-      browser tooltip and to assistive technology, on every cell, keyboard-
-      independent — this alone satisfies "full access to the data".
-
-   2. As a sighted enhancement, hovering a data cell — or focusing a link inside it
-      (view-entry / editable-element controls) — un-truncates that one cell in place:
-      the text wraps and the row grows just enough to show everything. This stays
-      inside the list's scroll container (unlike an absolutely-positioned popover,
-      which the container's overflow would clip), so no text is ever cut off. Only
-      the interacted row changes, and only while hovered/focused; every other row
-      and the default row height are untouched. */
-.fz-table tbody td:hover .main-cell-div,
-.fz-table tbody td:focus-within .main-cell-div {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  line-height: var(--lh-snug);
-}
-.fz-table tbody td:hover,
-.fz-table tbody td:focus-within {
-  overflow: visible;
-  white-space: normal;
-}
-/* Keep the checkbox/controls column and the sticky filter row untouched. */
-.fz-table tbody td.fz-cb:hover .main-cell-div,
-.fz-table tbody td.fz-cb:focus-within .main-cell-div,
-.fz-search-row td:hover .main-cell-div,
-.fz-search-row td:focus-within .main-cell-div {
-  white-space: nowrap;
-}
-
 .fz-search-row input:not([type="checkbox"]):not([type="radio"]),
 .fz-search-row select,
 .fz-search-row textarea {
