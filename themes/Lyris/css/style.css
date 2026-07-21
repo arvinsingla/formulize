@@ -2140,25 +2140,37 @@ textarea.fz-control {
   min-width: 0;
 }
 
-/* ---------- Two-column element template (elementtemplate2) → label-top ----------
-   elementtemplate2.php emits `.col1` (label) + `.col2` (field) with INLINE
-   `width:` styles intended for a side-by-side (label-left) layout. The owner
-   default is label-TOP, so we STACK the two columns: the row stays a flex
-   column (inherited from `.fz-field`/`.form-row`), and each column spans the
-   full width. `width: 100% !important` is required to defeat the inline
-   `width: 20%/auto` Formulize prints on the divs. */
+/* ---------- Two-column element template (elementtemplate2) → responsive label-left ----------
+   Issue #48. elementtemplate2.php is loaded ONLY when the screen's
+   `displaycolumns` == 2, and it emits `.col1` (label) + `.col2` (field) with
+   INLINE `width:` styles (e.g. `width:20%` / `width:auto`) intended for a
+   side-by-side, label-LEFT layout. The presence of `.col1` is therefore a
+   reliable, additive signal that two-column mode is active — no PHP flag or
+   container class change is needed to wire it up.
+
+   Desktop (>= 768px): render label-left. The `.form-row` becomes a flex ROW;
+   `.col1` keeps the inline width Formulize prints (flex: none so it isn't
+   stretched) and `.col2` takes the remaining space. The label is nudged down
+   with padding-top so it optically aligns with the first line of a single-line
+   control (--field-h tall).
+
+   Mobile (< 768px): collapse to single-column / label-top. The row returns to
+   a flex COLUMN and both columns span the full width; `width: 100% !important`
+   defeats the inline `width:20%/auto` Formulize prints on the divs. */
 
 .form-row:has(.col1) {
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--label-gap, 6px);
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--s-6, 24px);
 }
 
 .col1 {
-  width: 100% !important;
+  flex: none;                /* respect the inline width Formulize prints */
   min-width: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  /* optically centre the label against a single-line control */
+  padding-top: calc((var(--field-h, 38px) - var(--label-text, var(--fs-13)) * 1.35) / 2);
 }
 
 .col1 .form-label {
@@ -2166,9 +2178,27 @@ textarea.fz-control {
 }
 
 .col2 {
-  width: 100% !important;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* Collapse two-column → single-column (label-top) at the 768px breakpoint. */
+@media (max-width: 768px) {
+  .form-row:has(.col1) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--label-gap, 6px);
+  }
+
+  .col1 {
+    width: 100% !important;
+    padding-top: 0;
+    align-items: center;
+  }
+
+  .col2 {
+    width: 100% !important;
+  }
 }
 
 /* ---------- Radio / checkbox option groups (elementtemplate2 + others) ----------
