@@ -3752,3 +3752,84 @@ fieldset#icms_block_login_form {
     width: 100%;
   }
 }
+
+/* ============================================================
+   Issue #49 — Inline display-element (DE) editing
+   All rules are scoped to .fz-table so other themes are unaffected.
+   ============================================================ */
+
+/* Make the cell content div a flex row so the pencil icon and the
+   value text sit on the same baseline and vertically centred. */
+.fz-table .main-cell-div {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* The floated icon container from core formulize.css must not float
+   inside a flex row — flex handles placement instead. */
+.fz-table .formulize-display-element-edit-icon {
+  float: none;
+  margin-right: 0;
+  margin-bottom: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Core adds padding-left to leave room for the float; remove it here. */
+.fz-table .formulize-display-element-contents {
+  padding-left: 0;
+}
+
+/* Override core formulize.css which hardcodes colour:#fff on the
+   de-edit-icon glyph (same font as loe-edit-entry). */
+.fz-table .de-edit-icon::before {
+  color: var(--c-text-muted);
+}
+
+/* Core adds a dark text-shadow on hover; neutralise it and use
+   the same colour shift as loe-edit-entry. */
+.fz-table a.de-edit-icon:hover {
+  text-shadow: none;
+}
+
+.fz-table a.de-edit-icon:hover::before {
+  color: var(--c-text);
+}
+
+/* ── Confirm / Cancel action row shown while a cell is in edit mode ── */
+
+/* .fz-de-actions is injected by the Lyris override of renderElementHtml
+   in script.js (see Issue #49). */
+.fz-table .fz-de-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.fz-table .fz-de-confirm,
+.fz-table .fz-de-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--c-text-muted);
+  text-decoration: none;
+  transition: color var(--dur-1) var(--ease),
+              background var(--dur-1) var(--ease);
+}
+
+.fz-table .fz-de-confirm:hover {
+  color: #1a7f48;
+  background: rgba(26, 127, 72, 0.1);
+}
+
+.fz-table .fz-de-cancel:hover {
+  color: var(--c-text);
+  background: var(--c-surface-raised, rgba(0, 0, 0, 0.05));
+}

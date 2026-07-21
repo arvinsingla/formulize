@@ -442,3 +442,64 @@ function initCardToggles() {
 function showApp() {
   window.dispatchEvent(new CustomEvent('formulize_pageShown'));
 }
+
+// ============================================================
+// Issue #49 — Inline display-element editing: Lyris icon set
+// ============================================================
+//
+// The core renderElementHtml function (emitted by entriesdisplay.php)
+// injects legacy check.gif / x-wide.gif images after fetching the
+// element widget via XHR.  We override it here (this script executes
+// after the inline <script> block, so we win) with Lyris-themed SVG
+// icons and a flex action row that aligns vertically with the widget.
+//
+// Runs as an IIFE at load time; gracefully no-ops when the page has no
+// inline-editable display elements (renderElementHtml is never defined).
+(function patchRenderElementHtml() {
+  if (typeof window.renderElementHtml !== 'function') {
+    return; // no inline-editable display elements on this page
+  }
+
+  /* Lyris icon set: stroke-based SVGs using currentColor (inherits
+     from .fz-de-confirm / .fz-de-cancel colour rules in style.css). */
+  const iconCheck =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" ' +
+    'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<polyline points="20 6 9 17 4 12"/></svg>';
+
+  const iconX =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" ' +
+    'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<line x1="18" y1="6" x2="6" y2="18"/>' +
+    '<line x1="6" y1="6" x2="18" y2="18"/></svg>';
+
+  window.renderElementHtml = function renderElementHtml(elementHtml, params) {
+    const handle            = params[0];
+    const element_id        = params[1];
+    const entryId           = params[2];
+    const fid               = params[3];
+    const deInstanceCounter = params[5];
+
+    const onConfirm =
+      "renderElement('" + handle + "', " + element_id + ', ' + entryId +
+      ', ' + fid + ', 1, ' + deInstanceCounter + '); return false;';
+    const onCancel =
+      "renderElement('" + handle + "', " + element_id + ', ' + entryId +
+      ', ' + fid + ', 0, ' + deInstanceCounter + '); return false;';
+
+    const actions =
+      '<div class="fz-de-actions">' +
+        '<a class="fz-de-confirm" href="" title="Save" onclick="' + onConfirm + '">' +
+          iconCheck +
+        '</a>' +
+        '<a class="fz-de-cancel" href="" title="Cancel" onclick="' + onCancel + '">' +
+          iconX +
+        '</a>' +
+      '</div>';
+
+    jQuery('#deDiv_' + handle + '_' + entryId + '_' + deInstanceCounter)
+      .html(elementHtml + actions);
+  };
+}());
