@@ -196,6 +196,16 @@ function fzSelectView(value, isStandard) {
         };
     }
 
+    function initRepeatDataToggle() {
+        var toggle = document.getElementById('toggleRepeatData');
+        if (!toggle) return;
+        toggle.addEventListener('click', function () {
+            document.querySelectorAll('td.same-contents-as-prior-cell').forEach(function (cell) {
+                cell.classList.toggle('hide-same-contents-as-prior-cell');
+            });
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         // Unbind Formulize's default checkbox→panel handler; selection bar handles it instead.
         if (typeof jQuery !== 'undefined') {
@@ -215,6 +225,7 @@ function fzSelectView(value, isStandard) {
         });
         initFilterToggle();
         initRowDrawer();
+        initRepeatDataToggle();
     });
 }());
 </script>
