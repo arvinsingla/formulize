@@ -1350,12 +1350,20 @@ textarea {
 }
 
 /* Let the edit field flex so the field + both controls always share
-   one row (icons keep their size, the field takes the slack). */
+   one row (icons keep their size, the field takes the slack). The core
+   markup hardcodes size="30" on text inputs, whose intrinsic ~30ch width
+   would otherwise become the column's preferred width and reflow the
+   auto-layout table much wider on entering edit mode. Zero the flex-basis
+   and width so the field contributes ~nothing to the column's preferred
+   size (no reflow when there is already room), while flex-grow makes it
+   fill the space the cell already has. */
 .fz-table [id^="deDiv_"] > input,
 .fz-table [id^="deDiv_"] > select,
 .fz-table [id^="deDiv_"] > textarea {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
+  width: 0;
+  max-width: 100%;
 }
 
 .fz-table [id^="deDiv_"] > a:has(> img[src$="check.gif"]),
@@ -1372,7 +1380,11 @@ textarea {
 
 .fz-table [id^="deDiv_"] > a:has(> img[src$="check.gif"]),
 .fz-table [id^="deDiv_"] > a:has(> img[src$="x-wide.gif"]) {
-  display: inline-flex;
+  /* Core emits inline style="display: inline-block;" on these anchors,
+     which beats a plain stylesheet rule and drops the glyphs out of the
+     flex row (one sits higher than the other). Force inline-flex with
+     !important so they participate in the flex row and baseline-align. */
+  display: inline-flex !important;
   align-items: center;
   justify-content: center;
   width: 1.6em;
