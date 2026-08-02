@@ -3905,6 +3905,110 @@ fieldset#icms_block_login_form {
   }
 }
 
+/* ---------- jQuery-UI Accordion for subform elements (issue #71) ----------
+   "Full form" subform interfaces (modules/formulize/class/subformListingsElement.php)
+   render each connected entry as a jQuery-UI accordion section — e.g. the
+   Donated Artifacts page of the Donor form. jQuery-UI's default "start/smoothness"
+   theme paints the headers with grey/blue gradient chrome and a sprite triangle,
+   and its `.ui-widget` rules force Verdana at 1.1em, which clashes with Lyris and
+   inflates the embedded form's non-label text (labels are rem-based so they held,
+   but everything else rendered in Verdana one step too large). These rules re-skin
+   the accordion with Lyris tokens and neutralise the `.ui-widget` font cascade.
+
+   Scope: everything is rooted at `.subform-accordion-container` — Formulize's own
+   class on the accordion root (only present on subform accordions) — so no other
+   jQuery-UI widget (dialogs, datepickers, autocomplete) is affected. Two-class
+   selectors like `.subform-accordion-container.ui-accordion` and descendant
+   `.subform-accordion-container .ui-state-default` beat jQuery-UI's single-class
+   defaults without needing `!important`. */
+
+/* Container: drop Verdana/1.1em so embedded labels + fields inherit Lyris. */
+.subform-accordion-container.ui-accordion {
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  border: 0;
+  background: transparent;
+}
+
+/* Header — the collapsible bar for each connected entry. */
+.subform-accordion-container.ui-accordion .subform-header.ui-accordion-header,
+.subform-accordion-container .ui-accordion-header.ui-state-default {
+  position: relative;
+  margin: 0 0 var(--s-2);
+  padding: 0;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-2);
+  background: var(--c-surface-2);
+  color: var(--c-text);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+.subform-accordion-container .ui-accordion-header.ui-state-hover,
+.subform-accordion-container .ui-accordion-header.ui-state-focus {
+  background: var(--c-surface-3);
+  border-color: var(--c-border-strong);
+  color: var(--c-text);
+}
+.subform-accordion-container .ui-accordion-header.ui-state-active {
+  background: var(--c-accent-soft);
+  border-color: var(--c-accent-soft-2);
+  color: var(--c-accent-fg);
+  /* square the bottom so the header joins its content panel below */
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.subform-accordion-container .ui-accordion-header .accordion-name-anchor {
+  display: block;
+  padding: var(--s-3) var(--s-4) var(--s-3) var(--s-8);
+  color: inherit;
+  font-size: var(--fs-14);
+  text-decoration: none;
+}
+.subform-accordion-container .ui-accordion-header .accordion-name { color: inherit; }
+
+/* Replace jQuery-UI's sprite triangle with a CSS chevron. */
+.subform-accordion-container .ui-accordion-header .ui-icon {
+  position: absolute;
+  top: 50%;
+  left: var(--s-4);
+  width: 7px;
+  height: 7px;
+  margin: 0;
+  transform: translateY(-70%) rotate(45deg);
+  border: solid var(--c-text-muted);
+  border-width: 0 2px 2px 0;
+  background: none;
+  text-indent: 0;
+  transition: transform var(--dur-1) var(--ease);
+}
+.subform-accordion-container .ui-accordion-header.ui-state-active .ui-icon {
+  transform: translateY(-30%) rotate(-135deg);
+}
+
+/* Content panel — the embedded form for one connected entry. */
+.subform-accordion-container.ui-accordion .accordion-content.ui-accordion-content,
+.subform-accordion-container .ui-accordion-content.ui-widget-content {
+  margin: calc(-1 * var(--s-2) - 1px) 0 var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--c-accent-soft-2);
+  border-top: 0;
+  border-radius: 0 0 var(--r-2) var(--r-2);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+}
+
+/* Neutralise jQuery-UI's `.ui-widget input/select/textarea/button` Verdana
+   override so embedded fields use the Lyris font like the rest of the form. */
+.subform-accordion-container.ui-accordion input,
+.subform-accordion-container.ui-accordion select,
+.subform-accordion-container.ui-accordion textarea,
+.subform-accordion-container.ui-accordion button {
+  font-family: var(--font-sans);
+}
+
 /* ---------- Subform elements inside the drawer (issue #57) ----------
    A subform element (e.g. Artifacts on the Collection form) renders core markup:
    a caption, an add button, and a .formulize-subform-table of sub entries whose
