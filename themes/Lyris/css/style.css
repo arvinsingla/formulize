@@ -1704,19 +1704,28 @@ a.main-menu__item-link--active::before {
   height: 20px;
   float: left;
   margin-right: var(--s-2);
+  color: var(--c-warning);
+  flex: none;
 }
 
 .session-timeout-warning-close {
   float: right;
-  width: 16px;
-  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: calc(var(--s-1) * -1) calc(var(--s-1) * -1) 0 var(--s-2);
+  padding: var(--s-1);
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-2);
+  color: var(--c-text-subtle);
   cursor: pointer;
-  opacity: 0.5;
-  transition: opacity var(--dur-1) var(--ease);
+  transition: color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
 }
 
 .session-timeout-warning-close:hover {
-  opacity: 1;
+  color: var(--c-text);
+  background: var(--c-surface-3);
 }
 
 /* ============================================================
