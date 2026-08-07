@@ -1695,28 +1695,43 @@ a.main-menu__item-link--active::before {
 }
 
 #session-timeout-warning p {
-  margin: var(--s-1) 0 0;
+  margin: 0;
   color: var(--c-text-muted);
+}
+
+.session-timeout-warning-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-2);
 }
 
 .session-timeout-warning-icon {
   width: 20px;
   height: 20px;
-  float: left;
-  margin-right: var(--s-2);
+  display: block;
+  color: var(--c-warning);
+  flex: none;
 }
 
 .session-timeout-warning-close {
   float: right;
-  width: 16px;
-  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: calc(var(--s-1) * -1) calc(var(--s-1) * -1) 0 var(--s-2);
+  padding: var(--s-1);
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-2);
+  color: var(--c-text-subtle);
   cursor: pointer;
-  opacity: 0.5;
-  transition: opacity var(--dur-1) var(--ease);
+  transition: color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
 }
 
 .session-timeout-warning-close:hover {
-  opacity: 1;
+  color: var(--c-text);
+  background: var(--c-surface-3);
 }
 
 /* ============================================================
@@ -4022,6 +4037,40 @@ fieldset#icms_block_login_form {
 .subform-accordion-container.ui-accordion textarea,
 .subform-accordion-container.ui-accordion button {
   font-family: var(--font-sans);
+}
+
+/* ---------- List-view popup windows (issue #68) ----------
+   The list screens open several helper pages in a separate browser window via
+   showPop() -> window.open() (see modules/formulize/include/entriesdisplay.php):
+   Save view (save.php), calculations (pickcalcs.php / pickadvcalcs.php),
+   notifications (setnot.php), change columns (changecols.php), change scope
+   (changescope.php), plus import.php / export.php. Each of these renders as a
+   standalone document that loads ONLY the theme stylesheet, not the Lyris page
+   chrome. Each popup emits `<body class="formulize-popup">` so these rules target
+   that class directly instead of the fragile inline-style attribute selector.
+
+   Their content is a standard xoopsThemeForm (`.xo-theme-form > table.outer`
+   with `td.head` label cells and `td.even` field cells) which Lyris otherwise
+   leaves unstyled, so under the new theme the rows sit flush against each other
+   and the whole form hugs the window edges. The rules below add page padding
+   plus per-row vertical rhythm and a gap between the label and field columns. */
+body.formulize-popup {
+  padding: var(--s-6) var(--s-7) var(--s-8);
+  box-sizing: border-box;
+}
+body.formulize-popup .xo-theme-form table.outer > tbody > tr > th,
+body.formulize-popup .xo-theme-form table.outer > tbody > tr > td {
+  padding: var(--s-3) var(--s-4);
+  vertical-align: top;
+}
+/* A little more separation between the label column and its field. */
+body.formulize-popup .xo-theme-form table.outer > tbody > tr > td.head {
+  padding-right: var(--s-6);
+}
+/* Give the form title a touch more room beneath it. */
+body.formulize-popup .xo-theme-form table.outer > tbody > tr > th {
+  padding-bottom: var(--s-4);
+  text-align: center;
 }
 
 /* ---------- Subform elements inside the drawer (issue #57) ----------
