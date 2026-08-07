@@ -1695,15 +1695,21 @@ a.main-menu__item-link--active::before {
 }
 
 #session-timeout-warning p {
-  margin: var(--s-1) 0 0;
+  margin: 0;
   color: var(--c-text-muted);
+}
+
+.session-timeout-warning-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-2);
 }
 
 .session-timeout-warning-icon {
   width: 20px;
   height: 20px;
-  float: left;
-  margin-right: var(--s-2);
+  display: block;
   color: var(--c-warning);
   flex: none;
 }
