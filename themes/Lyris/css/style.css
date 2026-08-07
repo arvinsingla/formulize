@@ -3924,6 +3924,7 @@ fieldset#icms_block_login_form {
 
 /* Container: drop Verdana/1.1em so embedded labels + fields inherit Lyris. */
 .subform-accordion-container.ui-accordion {
+  width: 100%;
   font-family: var(--font-sans);
   font-size: var(--fs-14);
   border: 0;
@@ -3934,6 +3935,8 @@ fieldset#icms_block_login_form {
 .subform-accordion-container.ui-accordion .subform-header.ui-accordion-header,
 .subform-accordion-container .ui-accordion-header.ui-state-default {
   position: relative;
+  width: 100%;
+  box-sizing: border-box;
   margin: 0 0 var(--s-2);
   padding: 0;
   border: 1px solid var(--c-border);
