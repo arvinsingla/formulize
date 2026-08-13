@@ -1092,6 +1092,7 @@ function displayEntries($formframe, $mainform="", $loadview="", $loadOnlyView=0,
 	print "<input type=hidden name=formulize_cacheddata id=formulize_cacheddata value=\"$formulize_cachedDataId\">\n"; // set the cached data id that we might want to read on next page load
 	print "<input type=hidden name=formulize_previous_filter id=formulize_previous_filter value=\"" . htmlSpecialChars($filterToCompare) . "\">\n"; // save the filter to check for a change on next page load
 	print "<input type=hidden name=formulize_previous_scope id=formulize_previous_scope value=\"" . htmlSpecialChars($flatScope) . "\">\n"; // save the scope to check for a change on next page load
+	print "<input type=hidden name=formulize_previous_entriesPerPage id=formulize_previous_entriesPerPage value=\"" . formulize_effectiveEntriesPerPage($screen) . "\">\n"; // save the page size to check for a change on next page load, so changing it returns the user to the first page
 	print "<input type=hidden name=formulize_previous_sort id=formulize_previous_sort value=\"$sort\">\n";
 	print "<input type=hidden name=formulize_previous_order id=formulize_previous_order value=\"$order\">\n";
 
@@ -4900,6 +4901,44 @@ function formulize_screenLOEButton($button, $buttonText, $settings, $fid, $frid,
 	}
 }
 
+/**
+ * Work out how many entries belong on one page of a list of entries.
+ *
+ * The size comes from the entries-per-page selector if the user has one on screen
+ * (posted back as formulize_entriesPerPage), and otherwise falls back to the page
+ * size saved on the screen. A size of zero means "show all the entries".
+ *
+ * @param object $screen - the screen being rendered, or null if there isn't one
+ * @return int - the number of entries that belong on a page, 0 for all of them
+ */
+function formulize_effectiveEntriesPerPage($screen) {
+	$pageSize = is_object($screen) ? $screen->getVar('entriesperpage') : 10;
+	if(isset($_POST['formulize_entriesPerPage']) AND $_POST['formulize_entriesPerPage'] !== "") {
+		$pageSize = $_POST['formulize_entriesPerPage'];
+	}
+	return intval($pageSize);
+}
+
+/**
+ * Has the user just changed the number of entries per page?
+ *
+ * The page size that produced the page the user is looking at is written into the
+ * form as formulize_previous_entriesPerPage, so it comes back to us on the next
+ * request and we can compare it with the size we are about to use. When the size
+ * has changed, the record offset the user was sitting at (formulize_LOEPageStart)
+ * no longer refers to the page they asked for, so callers use this to send them
+ * back to the first page of the new page size.
+ *
+ * @param int $pageSize - the page size that is going to be used for this request
+ * @return bool - true if the page size is different from the one last rendered
+ */
+function formulize_entriesPerPageChanged($pageSize) {
+	if(!isset($_POST['formulize_previous_entriesPerPage'])) {
+		return false; // nothing to compare against, ie: the first time this list is drawn
+	}
+	return intval($_POST['formulize_previous_entriesPerPage']) !== intval($pageSize);
+}
+
 // THIS FUNCTION HANDLES GATHERING A DATASET FOR DISPLAY IN THE LIST
 // $sort and $order are two separate parallel strings, optionally comma separated for multi column sorts
 function formulize_gatherDataSet($settings, $searches, $sort, $order, $frid, $fid, $scope, $screen=null, $currentURL="", $forcequery = 0) {
@@ -4940,14 +4979,14 @@ function formulize_gatherDataSet($settings, $searches, $sort, $order, $frid, $fi
 	$filterToCompare = is_array($filter) ? serialize($filter) : $filter;
 	$filterToCompare = md5($filterToCompare); // has so it doesn't look like a SQL injection to server security software
 
+	$formulize_LOEPageSize = formulize_effectiveEntriesPerPage($screen);
+
 	$regeneratePageNumbers = false;
 
 	// if something changed, then we need to redo the page numbers
-	if(!isset($_POST['lastentry']) AND ((isset($_POST['formulize_previous_filter']) AND $filterToCompare != $_POST['formulize_previous_filter']) OR (isset($_POST['formulize_previous_scope']) AND $flatScope != $_POST['formulize_previous_scope']))) {
+	if(!isset($_POST['lastentry']) AND ((isset($_POST['formulize_previous_filter']) AND $filterToCompare != $_POST['formulize_previous_filter']) OR (isset($_POST['formulize_previous_scope']) AND $flatScope != $_POST['formulize_previous_scope']) OR formulize_entriesPerPageChanged($formulize_LOEPageSize))) {
 			$regeneratePageNumbers = true;
 		}
-	$formulize_LOEPageSize = is_object($screen) ? $screen->getVar('entriesperpage') : 10;
-  $formulize_LOEPageSize = (isset($_POST['formulize_entriesPerPage']) AND $_POST['formulize_entriesPerPage'] !== "") ? intval($_POST['formulize_entriesPerPage']) : $formulize_LOEPageSize;
 	if($formulize_LOEPageSize) {
 	  $limitStart = (isset($_POST['formulize_LOEPageStart']) AND !$regeneratePageNumbers) ? intval($_POST['formulize_LOEPageStart']) : 0;
 	  $limitSize = $formulize_LOEPageSize;
