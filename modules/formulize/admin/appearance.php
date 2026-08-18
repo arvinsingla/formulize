@@ -25,7 +25,11 @@
 ##  Project: Formulize                                                       ##
 ###############################################################################
 
-// Appearance admin page: site-wide colours, font, and logo for the end-user UI
+// Appearance admin page: colours, font, and logo for the end-user UI, edited
+// one theme at a time. The theme picker works the same way as the one in the
+// Theme Editor (admin/themeeditor.php): it lists the installed themes and
+// starts on the site's active theme, and switching it reloads this page with
+// ?theme= so the form always shows the selected theme's own settings.
 
 if(!defined('_FORMULIZE_UI_PHP_INCLUDED')) { exit(); }
 
@@ -48,33 +52,73 @@ $fontMap = formulize_appearanceFontMap();
 $saved = false;
 $errors = array();
 
-// helper to write one appearance config value, if the config item exists
-// (items only exist once the module has been updated in the system admin)
-function formulize_saveAppearanceConfig($name, $value, &$configItems, &$errors) {
+// Which theme's settings are being edited: whatever was picked in the theme select
+// (the form posts it back so a save stays on the same theme), falling back to the
+// site's active theme. Anything not actually installed resolves back to that too.
+$themes = formulize_getAppearanceThemes();
+$requestedTheme = isset($_POST['appearance_theme']) ? $_POST['appearance_theme'] : (isset($_GET['theme']) ? $_GET['theme'] : '');
+$selectedTheme = formulize_resolveAppearanceTheme($requestedTheme);
+
+// helper to write one appearance config value for the theme being edited, if the
+// config item exists (items only exist once the module has been updated in the
+// system admin). Only the selected theme's value in the item is touched; the other
+// themes' values are carried through untouched.
+function formulize_saveAppearanceConfig($name, $value, $theme, &$configItems, &$errors) {
     global $config_handler;
     if(!isset($configItems[$name])) {
         $errors[] = "Could not save setting '$name'. The Formulize module may need to be updated in the system admin.";
         return;
     }
-    $configItems[$name]->setConfValueForInput($value);
+    $stored = formulize_setAppearanceSettingValue($configItems[$name]->getConfValueForOutput(), $theme, $value);
+    $configItems[$name]->setConfValueForInput($stored);
     if(!$config_handler->insertConfig($configItems[$name])) {
         $errors[] = "Could not save setting '$name' to the database.";
     }
+}
+
+// the value of one appearance setting for the theme being edited
+function formulize_currentAppearanceValue($name, $theme, &$configItems) {
+    if(!isset($configItems[$name])) {
+        return '';
+    }
+    $values = formulize_parseAppearanceSettingValue($configItems[$name]->getConfValueForOutput());
+    return isset($values[$theme]) ? trim($values[$theme]) : '';
+}
+
+// delete the logo file a theme is currently using, when the logo is being removed or
+// replaced. A logo in the legacy uploads/appearance folder is only deleted if no other
+// theme is still pointing at it, since a logo uploaded before the per-theme settings
+// existed can have been carried over to more than one theme.
+function formulize_deleteAppearanceLogoFile($theme, &$configItems) {
+    if(!isset($configItems['appearance_logo'])) {
+        return;
+    }
+    $values = formulize_parseAppearanceSettingValue($configItems['appearance_logo']->getConfValueForOutput());
+    $logoFile = isset($values[$theme]) ? basename(trim($values[$theme])) : '';
+    $path = formulize_locateAppearanceFile($logoFile, $theme);
+    if(!$path) {
+        return;
+    }
+    if(strpos($path, formulize_getLegacyAppearanceDir() . '/') === 0) {
+        unset($values[$theme]);
+        foreach($values as $otherFile) {
+            if(basename(trim($otherFile)) === $logoFile) {
+                return;
+            }
+        }
+    }
+    unlink($path);
 }
 
 if(isset($_POST['appearance_save']) OR isset($_POST['appearance_reset'])) {
 
     if(isset($_POST['appearance_reset'])) {
 
-        // reset everything to defaults, including removing any uploaded logo
-        if(isset($configItems['appearance_logo'])) {
-            $oldLogo = basename($configItems['appearance_logo']->getConfValueForOutput());
-            if($oldLogo AND file_exists(formulize_getAppearanceUploadDir() . '/' . $oldLogo)) {
-                unlink(formulize_getAppearanceUploadDir() . '/' . $oldLogo);
-            }
-        }
+        // reset this theme's settings to the defaults, including removing any logo
+        // uploaded for it
+        formulize_deleteAppearanceLogoFile($selectedTheme, $configItems);
         foreach(formulize_appearanceConfigNames() as $name) {
-            formulize_saveAppearanceConfig($name, '', $configItems, $errors);
+            formulize_saveAppearanceConfig($name, '', $selectedTheme, $configItems, $errors);
         }
 
     } else {
@@ -86,7 +130,7 @@ if(isset($_POST['appearance_save']) OR isset($_POST['appearance_reset'])) {
             if($value == $colour['default']) {
                 $value = '';
             }
-            formulize_saveAppearanceConfig('appearance_' . $key, $value, $configItems, $errors);
+            formulize_saveAppearanceConfig('appearance_' . $key, $value, $selectedTheme, $configItems, $errors);
         }
 
         // font
@@ -96,17 +140,15 @@ if(isset($_POST['appearance_save']) OR isset($_POST['appearance_reset'])) {
             $font = 'geist';
             $errors[] = "Please enter a Google Font name to use a custom font. The default font has been kept.";
         }
-        formulize_saveAppearanceConfig('appearance_font', ($font == 'geist') ? '' : $font, $configItems, $errors);
-        formulize_saveAppearanceConfig('appearance_customfont', ($font == 'custom') ? $customFont : '', $configItems, $errors);
+        formulize_saveAppearanceConfig('appearance_font', ($font == 'geist') ? '' : $font, $selectedTheme, $configItems, $errors);
+        formulize_saveAppearanceConfig('appearance_customfont', ($font == 'custom') ? $customFont : '', $selectedTheme, $configItems, $errors);
 
         // logo: remove and/or replace
-        $currentLogo = isset($configItems['appearance_logo']) ? basename($configItems['appearance_logo']->getConfValueForOutput()) : '';
+        $currentLogo = formulize_currentAppearanceValue('appearance_logo', $selectedTheme, $configItems);
         $newUpload = (isset($_FILES['appearance_logo_file']) AND $_FILES['appearance_logo_file']['error'] == UPLOAD_ERR_OK);
         if((isset($_POST['appearance_logo_remove']) OR $newUpload) AND $currentLogo) {
-            if(file_exists(formulize_getAppearanceUploadDir() . '/' . $currentLogo)) {
-                unlink(formulize_getAppearanceUploadDir() . '/' . $currentLogo);
-            }
-            formulize_saveAppearanceConfig('appearance_logo', '', $configItems, $errors);
+            formulize_deleteAppearanceLogoFile($selectedTheme, $configItems);
+            formulize_saveAppearanceConfig('appearance_logo', '', $selectedTheme, $configItems, $errors);
         }
         if($newUpload) {
             $allowedTypes = array(
@@ -119,13 +161,11 @@ if(isset($_POST['appearance_save']) OR isset($_POST['appearance_reset'])) {
             $mimeType = mime_content_type($_FILES['appearance_logo_file']['tmp_name']);
             if(isset($allowedTypes[$mimeType])) {
                 $fileName = 'formulize-appearance-logo-' . time() . '.' . $allowedTypes[$mimeType];
-                if(!is_dir(formulize_getAppearanceUploadDir())) {
-                    mkdir(formulize_getAppearanceUploadDir(), 0755, true);
-                }
-                if(move_uploaded_file($_FILES['appearance_logo_file']['tmp_name'], formulize_getAppearanceUploadDir() . '/' . $fileName)) {
-                    formulize_saveAppearanceConfig('appearance_logo', $fileName, $configItems, $errors);
+                $appearanceDir = formulize_prepareAppearanceDir($selectedTheme);
+                if($appearanceDir AND move_uploaded_file($_FILES['appearance_logo_file']['tmp_name'], $appearanceDir . '/' . $fileName)) {
+                    formulize_saveAppearanceConfig('appearance_logo', $fileName, $selectedTheme, $configItems, $errors);
                 } else {
-                    $errors[] = "Could not move the uploaded logo into the appearance folder in the uploads folder. Check the folder permissions.";
+                    $errors[] = "Could not move the uploaded logo into " . formulize_getAppearanceDir($selectedTheme) . ". Check the folder permissions.";
                 }
             } else {
                 $errors[] = "The logo must be a PNG, JPEG, GIF, SVG, or WebP image.";
@@ -136,18 +176,19 @@ if(isset($_POST['appearance_save']) OR isset($_POST['appearance_reset'])) {
     $saved = (count($errors) == 0);
 }
 
-// prepare current values for the template, reading from the config objects so
-// values saved above are reflected immediately
+// prepare the selected theme's current values for the template, reading from the
+// config objects so values saved above are reflected immediately
 $currentValues = array();
 foreach(formulize_appearanceConfigNames() as $name) {
-    $currentValues[$name] = isset($configItems[$name]) ? trim($configItems[$name]->getConfValueForOutput()) : '';
+    $currentValues[$name] = formulize_currentAppearanceValue($name, $selectedTheme, $configItems);
 }
 
-// regenerate the appearance stylesheet whenever settings have been saved, passing
-// the just-saved values explicitly since cached config reads could be stale
+// regenerate the selected theme's appearance stylesheet whenever its settings have
+// been saved, passing the just-saved values explicitly since cached config reads
+// could be stale
 if(isset($_POST['appearance_save']) OR isset($_POST['appearance_reset'])) {
-    if(!formulize_regenerateAppearanceCss($currentValues)) {
-        $errors[] = "Could not write the appearance stylesheet to the appearance folder in the uploads folder. Check the folder permissions.";
+    if(!formulize_regenerateAppearanceCss($currentValues, $selectedTheme)) {
+        $errors[] = "Could not write the appearance stylesheet to " . formulize_getAppearanceDir($selectedTheme) . ". Check the folder permissions.";
         $saved = false;
     }
 }
@@ -168,9 +209,21 @@ foreach($fontMap as $key => $font) {
     $fonts[$key] = $font['label'];
 }
 
-$logoFile = basename($currentValues['appearance_logo']);
-$logoPath = formulize_getAppearanceUploadDir() . '/' . $logoFile;
-$logoUrl = ($logoFile AND file_exists($logoPath)) ? formulize_getAppearanceUploadUrl() . '/' . rawurlencode($logoFile) . '?v=' . filemtime($logoPath) : '';
+// the logo can still be sitting in the legacy uploads/appearance folder on a site
+// that had one uploaded before appearance files moved into the theme folders, so
+// the shared lookup (which checks both places) builds the preview URL
+$logoPath = formulize_locateAppearanceFile($currentValues['appearance_logo'], $selectedTheme);
+$logoUrl = '';
+if($logoPath) {
+    $logoBase = (strpos($logoPath, formulize_getLegacyAppearanceDir() . '/') === 0)
+        ? formulize_getLegacyAppearanceUrl()
+        : formulize_getAppearanceUrl($selectedTheme);
+    $logoUrl = $logoBase . '/' . rawurlencode(basename($logoPath)) . '?v=' . filemtime($logoPath);
+}
+
+// warn up front if this theme's appearance folder can't be written, rather than
+// letting the admin fill the form in and only then discover the save can't land
+$appearanceDirWritable = formulize_appearanceDirIsWritable($selectedTheme);
 
 $adminPage['home_tabs'] = getHomeTabs('appearance');
 $adminPage['colours'] = $colours;
@@ -181,6 +234,12 @@ $adminPage['logoUrl'] = $logoUrl;
 $adminPage['saved'] = $saved;
 $adminPage['errors'] = $errors;
 $adminPage['configsMissing'] = !isset($configItems['appearance_primary']);
+$adminPage['themes'] = $themes;
+$adminPage['selected_theme'] = $selectedTheme;
+$adminPage['active_theme'] = formulize_getDefaultAppearanceTheme();
+$adminPage['theme_supports_appearance'] = formulize_themeSupportsAppearance($selectedTheme);
+$adminPage['appearance_dir'] = formulize_getAppearanceDir($selectedTheme);
+$adminPage['appearance_dir_writable'] = $appearanceDirWritable;
 $adminPage['template'] = "db:admin/appearance.html";
 
 $breadcrumbtrail[1]['url'] = "page=home";
