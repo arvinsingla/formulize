@@ -12,7 +12,7 @@
             <option value="<{$themeDir}>" <{if $themeDir == $adminPage.selected_theme}>selected="selected"<{/if}>><{$themeName}><{if $themeDir == $adminPage.active_theme}> (active)<{/if}></option>
         <{/foreach}>
         </select>
-        <span style="font-size: smaller;">Settings and generated files are stored per theme, in <{$adminPage.appearance_dir}></span>
+        <span style="font-size: smaller;">Each theme's settings are kept in the stylesheet generated for it, <{$adminPage.appearance_css}>. Delete that file to put this theme back to the defaults.</span>
     </p>
 
     <{if !$adminPage.theme_supports_appearance}>
@@ -20,11 +20,7 @@
     <{/if}>
 
     <{if !$adminPage.appearance_dir_writable}>
-    <p style="color: #b3261e; font-weight: bold;">The web server cannot write to <{$adminPage.appearance_dir}>, and was not able to correct the permissions itself. Saving will not be able to generate the stylesheet for this theme until that folder is made writable on your server.</p>
-    <{/if}>
-
-    <{if $adminPage.configsMissing}>
-    <p style="color: #b3261e; font-weight: bold;">The appearance settings are not registered in the database yet. Please update the Formulize module in the System Admin, then return to this page.</p>
+    <p style="color: #b3261e; font-weight: bold;">The web server cannot write to <{$adminPage.appearance_dir}>, and was not able to correct the permissions itself. This theme's settings are kept in the stylesheet generated in that folder, so nothing can be saved for it until that folder is made writable on your server.</p>
     <{/if}>
 
     <{if $adminPage.saved}>

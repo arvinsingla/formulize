@@ -30,22 +30,15 @@
 // Theme Editor (admin/themeeditor.php): it lists the installed themes and
 // starts on the site's active theme, and switching it reloads this page with
 // ?theme= so the form always shows the selected theme's own settings.
+//
+// A theme's settings live in the stylesheet generated for it, in that theme's
+// own appearance folder. Saving means writing that file, and the form is filled
+// in by reading it back, so there is one place the settings can be, and a theme
+// with no generated stylesheet simply shows the defaults.
 
 if(!defined('_FORMULIZE_UI_PHP_INCLUDED')) { exit(); }
 
 include_once XOOPS_ROOT_PATH . "/modules/formulize/include/appearance.php";
-
-$config_handler = xoops_gethandler('config');
-$formulizeModId = getFormulizeModId();
-
-// gather the appearance config item objects, keyed by name
-$criteria = new CriteriaCompo(new Criteria('conf_modid', $formulizeModId));
-$configItems = array();
-foreach($config_handler->getConfigs($criteria) as $configItem) {
-    if(strstr($configItem->getVar('conf_name'), 'appearance_')) {
-        $configItems[$configItem->getVar('conf_name')] = $configItem;
-    }
-}
 
 $colourMap = formulize_appearanceColourMap();
 $fontMap = formulize_appearanceFontMap();
@@ -59,138 +52,81 @@ $themes = formulize_getAppearanceThemes();
 $requestedTheme = isset($_POST['appearance_theme']) ? $_POST['appearance_theme'] : (isset($_GET['theme']) ? $_GET['theme'] : '');
 $selectedTheme = formulize_resolveAppearanceTheme($requestedTheme);
 
-// helper to write one appearance config value for the theme being edited, if the
-// config item exists (items only exist once the module has been updated in the
-// system admin). Only the selected theme's value in the item is touched; the other
-// themes' values are carried through untouched.
-function formulize_saveAppearanceConfig($name, $value, $theme, &$configItems, &$errors) {
-    global $config_handler;
-    if(!isset($configItems[$name])) {
-        $errors[] = "Could not save setting '$name'. The Formulize module may need to be updated in the system admin.";
-        return;
-    }
-    $stored = formulize_setAppearanceSettingValue($configItems[$name]->getConfValueForOutput(), $theme, $value);
-    $configItems[$name]->setConfValueForInput($stored);
-    if(!$config_handler->insertConfig($configItems[$name])) {
-        $errors[] = "Could not save setting '$name' to the database.";
-    }
-}
+// the settings as they stand, read out of the theme's generated stylesheet
+$settings = formulize_getAppearanceSettings($selectedTheme);
 
-// the value of one appearance setting for the theme being edited
-function formulize_currentAppearanceValue($name, $theme, &$configItems) {
-    if(!isset($configItems[$name])) {
-        return '';
-    }
-    $values = formulize_parseAppearanceSettingValue($configItems[$name]->getConfValueForOutput());
-    return isset($values[$theme]) ? trim($values[$theme]) : '';
-}
-
-// delete the logo file a theme is currently using, when the logo is being removed or
-// replaced. A logo in the legacy uploads/appearance folder is only deleted if no other
-// theme is still pointing at it, since a logo uploaded before the per-theme settings
-// existed can have been carried over to more than one theme.
-function formulize_deleteAppearanceLogoFile($theme, &$configItems) {
-    if(!isset($configItems['appearance_logo'])) {
-        return;
-    }
-    $values = formulize_parseAppearanceSettingValue($configItems['appearance_logo']->getConfValueForOutput());
-    $logoFile = isset($values[$theme]) ? basename(trim($values[$theme])) : '';
+// delete the logo file a theme is using, when the logo is being removed or replaced.
+// Only a file in the theme's own appearance folder is deleted: a logo still sitting in
+// the legacy uploads/appearance folder predates per-theme settings and can be shared
+// with another theme, so it is left alone and simply stops being referenced.
+function formulize_deleteAppearanceLogoFile($logoFile, $theme) {
     $path = formulize_locateAppearanceFile($logoFile, $theme);
-    if(!$path) {
-        return;
+    if($path AND strpos($path, formulize_getAppearanceDir($theme) . '/') === 0) {
+        unlink($path);
     }
-    if(strpos($path, formulize_getLegacyAppearanceDir() . '/') === 0) {
-        unset($values[$theme]);
-        foreach($values as $otherFile) {
-            if(basename(trim($otherFile)) === $logoFile) {
-                return;
-            }
-        }
-    }
-    unlink($path);
 }
 
 if(isset($_POST['appearance_save']) OR isset($_POST['appearance_reset'])) {
 
-    if(isset($_POST['appearance_reset'])) {
+    // build the settings to write, starting from the defaults, which is also exactly
+    // what a reset writes
+    $submitted = formulize_defaultAppearanceSettings();
 
-        // reset this theme's settings to the defaults, including removing any logo
-        // uploaded for it
-        formulize_deleteAppearanceLogoFile($selectedTheme, $configItems);
-        foreach(formulize_appearanceConfigNames() as $name) {
-            formulize_saveAppearanceConfig($name, '', $selectedTheme, $configItems, $errors);
-        }
-
-    } else {
-
-        // colours
+    if(isset($_POST['appearance_save'])) {
         foreach($colourMap as $key => $colour) {
-            $value = formulize_sanitizeAppearanceColour(isset($_POST['appearance_' . $key]) ? $_POST['appearance_' . $key] : '');
-            // store nothing when the user has kept the default, so theme defaults can evolve
-            if($value == $colour['default']) {
-                $value = '';
-            }
-            formulize_saveAppearanceConfig('appearance_' . $key, $value, $selectedTheme, $configItems, $errors);
+            $submitted['appearance_' . $key] = isset($_POST['appearance_' . $key]) ? $_POST['appearance_' . $key] : '';
         }
-
-        // font
-        $font = (isset($_POST['appearance_font']) AND isset($fontMap[$_POST['appearance_font']])) ? $_POST['appearance_font'] : 'geist';
-        $customFont = isset($_POST['appearance_customfont']) ? trim(preg_replace('/[^a-zA-Z0-9 ]/', '', $_POST['appearance_customfont'])) : '';
-        if($font == 'custom' AND !$customFont) {
-            $font = 'geist';
+        $submitted['appearance_font'] = isset($_POST['appearance_font']) ? $_POST['appearance_font'] : '';
+        $submitted['appearance_customfont'] = isset($_POST['appearance_customfont']) ? $_POST['appearance_customfont'] : '';
+        $submitted['appearance_logo'] = $settings['appearance_logo']; // kept unless removed or replaced below
+        if($submitted['appearance_font'] == 'custom' AND !formulize_sanitizeAppearanceFontFamily($submitted['appearance_customfont'])) {
             $errors[] = "Please enter a Google Font name to use a custom font. The default font has been kept.";
         }
-        formulize_saveAppearanceConfig('appearance_font', ($font == 'geist') ? '' : $font, $selectedTheme, $configItems, $errors);
-        formulize_saveAppearanceConfig('appearance_customfont', ($font == 'custom') ? $customFont : '', $selectedTheme, $configItems, $errors);
+    }
 
-        // logo: remove and/or replace
-        $currentLogo = formulize_currentAppearanceValue('appearance_logo', $selectedTheme, $configItems);
-        $newUpload = (isset($_FILES['appearance_logo_file']) AND $_FILES['appearance_logo_file']['error'] == UPLOAD_ERR_OK);
-        if((isset($_POST['appearance_logo_remove']) OR $newUpload) AND $currentLogo) {
-            formulize_deleteAppearanceLogoFile($selectedTheme, $configItems);
-            formulize_saveAppearanceConfig('appearance_logo', '', $selectedTheme, $configItems, $errors);
-        }
-        if($newUpload) {
-            $allowedTypes = array(
-                'image/png' => 'png',
-                'image/jpeg' => 'jpg',
-                'image/gif' => 'gif',
-                'image/svg+xml' => 'svg',
-                'image/webp' => 'webp',
-            );
-            $mimeType = mime_content_type($_FILES['appearance_logo_file']['tmp_name']);
-            if(isset($allowedTypes[$mimeType])) {
-                $fileName = 'formulize-appearance-logo-' . time() . '.' . $allowedTypes[$mimeType];
-                $appearanceDir = formulize_prepareAppearanceDir($selectedTheme);
-                if($appearanceDir AND move_uploaded_file($_FILES['appearance_logo_file']['tmp_name'], $appearanceDir . '/' . $fileName)) {
-                    formulize_saveAppearanceConfig('appearance_logo', $fileName, $selectedTheme, $configItems, $errors);
-                } else {
-                    $errors[] = "Could not move the uploaded logo into " . formulize_getAppearanceDir($selectedTheme) . ". Check the folder permissions.";
-                }
+    // The logo is an image, so it can't be a value in the stylesheet the way the
+    // colours and the font are. The file is kept beside the stylesheet in the theme's
+    // appearance folder, and the stylesheet records which file is in use, so the
+    // stylesheet is still the one place the settings are read from.
+    $newLogo = '';
+    if(isset($_FILES['appearance_logo_file']) AND $_FILES['appearance_logo_file']['error'] == UPLOAD_ERR_OK) {
+        $allowedTypes = array(
+            'image/png' => 'png',
+            'image/jpeg' => 'jpg',
+            'image/gif' => 'gif',
+            'image/svg+xml' => 'svg',
+            'image/webp' => 'webp',
+        );
+        $mimeType = mime_content_type($_FILES['appearance_logo_file']['tmp_name']);
+        if(isset($allowedTypes[$mimeType])) {
+            $fileName = 'formulize-appearance-logo-' . time() . '.' . $allowedTypes[$mimeType];
+            $appearanceDir = formulize_prepareAppearanceDir($selectedTheme);
+            if($appearanceDir AND move_uploaded_file($_FILES['appearance_logo_file']['tmp_name'], $appearanceDir . '/' . $fileName)) {
+                $newLogo = $fileName;
             } else {
-                $errors[] = "The logo must be a PNG, JPEG, GIF, SVG, or WebP image.";
+                $errors[] = "Could not move the uploaded logo into " . formulize_getAppearanceDir($selectedTheme) . ". Check the folder permissions.";
             }
+        } else {
+            $errors[] = "The logo must be a PNG, JPEG, GIF, SVG, or WebP image.";
         }
     }
-
-    $saved = (count($errors) == 0);
-}
-
-// prepare the selected theme's current values for the template, reading from the
-// config objects so values saved above are reflected immediately
-$currentValues = array();
-foreach(formulize_appearanceConfigNames() as $name) {
-    $currentValues[$name] = formulize_currentAppearanceValue($name, $selectedTheme, $configItems);
-}
-
-// regenerate the selected theme's appearance stylesheet whenever its settings have
-// been saved, passing the just-saved values explicitly since cached config reads
-// could be stale
-if(isset($_POST['appearance_save']) OR isset($_POST['appearance_reset'])) {
-    if(!formulize_regenerateAppearanceCss($currentValues, $selectedTheme)) {
-        $errors[] = "Could not write the appearance stylesheet to " . formulize_getAppearanceDir($selectedTheme) . ". Check the folder permissions.";
-        $saved = false;
+    // the old file only goes when there is something to put in its place, or the admin
+    // asked for it to go, so a rejected upload leaves the current logo alone
+    if($newLogo OR isset($_POST['appearance_reset']) OR isset($_POST['appearance_logo_remove'])) {
+        formulize_deleteAppearanceLogoFile($settings['appearance_logo'], $selectedTheme);
+        $submitted['appearance_logo'] = $newLogo;
     }
+
+    // writing the stylesheet is the save: if it can't be written, nothing was saved,
+    // so say that rather than reporting success the settings didn't survive
+    if(formulize_regenerateAppearanceCss($submitted, $selectedTheme)) {
+        $saved = (count($errors) == 0);
+    } else {
+        $errors[] = "Nothing was saved. The " . $selectedTheme . " theme's settings are kept in its generated stylesheet, and that file could not be written to " . formulize_getAppearanceDir($selectedTheme) . ". Make that folder writable by the web server and save again.";
+    }
+
+    // show what was submitted either way, so a failed save doesn't mean retyping it
+    $settings = formulize_sanitizeAppearanceSettings($submitted);
 }
 
 $colours = array();
@@ -200,7 +136,7 @@ foreach($colourMap as $key => $colour) {
         'label' => $colour['label'],
         'description' => $colour['description'],
         'default' => $colour['default'],
-        'value' => $currentValues['appearance_' . $key] ? $currentValues['appearance_' . $key] : $colour['default'],
+        'value' => $settings['appearance_' . $key] ? $settings['appearance_' . $key] : $colour['default'],
     );
 }
 
@@ -212,7 +148,7 @@ foreach($fontMap as $key => $font) {
 // the logo can still be sitting in the legacy uploads/appearance folder on a site
 // that had one uploaded before appearance files moved into the theme folders, so
 // the shared lookup (which checks both places) builds the preview URL
-$logoPath = formulize_locateAppearanceFile($currentValues['appearance_logo'], $selectedTheme);
+$logoPath = formulize_locateAppearanceFile($settings['appearance_logo'], $selectedTheme);
 $logoUrl = '';
 if($logoPath) {
     $logoBase = (strpos($logoPath, formulize_getLegacyAppearanceDir() . '/') === 0)
@@ -221,24 +157,26 @@ if($logoPath) {
     $logoUrl = $logoBase . '/' . rawurlencode(basename($logoPath)) . '?v=' . filemtime($logoPath);
 }
 
-// warn up front if this theme's appearance folder can't be written, rather than
-// letting the admin fill the form in and only then discover the save can't land
+// Warn up front if this theme's appearance folder can't be written, rather than
+// letting the admin fill the form in and only then discover the save can't land.
+// The stylesheet is where the settings are kept, so an unwritable folder means
+// nothing can be saved for this theme at all.
 $appearanceDirWritable = formulize_appearanceDirIsWritable($selectedTheme);
 
 $adminPage['home_tabs'] = getHomeTabs('appearance');
 $adminPage['colours'] = $colours;
 $adminPage['fonts'] = $fonts;
-$adminPage['currentFont'] = $currentValues['appearance_font'] ? $currentValues['appearance_font'] : 'geist';
-$adminPage['currentCustomFont'] = $currentValues['appearance_customfont'];
+$adminPage['currentFont'] = $settings['appearance_font'] ? $settings['appearance_font'] : 'geist';
+$adminPage['currentCustomFont'] = $settings['appearance_customfont'];
 $adminPage['logoUrl'] = $logoUrl;
 $adminPage['saved'] = $saved;
 $adminPage['errors'] = $errors;
-$adminPage['configsMissing'] = !isset($configItems['appearance_primary']);
 $adminPage['themes'] = $themes;
 $adminPage['selected_theme'] = $selectedTheme;
 $adminPage['active_theme'] = formulize_getDefaultAppearanceTheme();
 $adminPage['theme_supports_appearance'] = formulize_themeSupportsAppearance($selectedTheme);
 $adminPage['appearance_dir'] = formulize_getAppearanceDir($selectedTheme);
+$adminPage['appearance_css'] = formulize_getAppearanceCssPath($selectedTheme);
 $adminPage['appearance_dir_writable'] = $appearanceDirWritable;
 $adminPage['template'] = "db:admin/appearance.html";
 

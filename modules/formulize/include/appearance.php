@@ -26,14 +26,21 @@
 ###############################################################################
 
 // Appearance settings: colours, font, and logo, configured on the Appearance
-// page in the Formulize admin UI, stored as module config items, and rendered
-// by themes as CSS custom property overrides on :root.
+// page in the Formulize admin UI, and rendered by themes as CSS custom property
+// overrides on :root.
 //
-// Settings are kept per theme, and the artifacts they produce (the generated
-// appearance.css and any uploaded logo) live in an "appearance" folder inside
-// the theme's own folder, ie: themes/Lyris/appearance/. That folder is inside
-// the web root and is not access-protected the way uploads/ usually is, so the
-// files are reachable by the browser wherever the site is deployed.
+// Settings are kept per theme, in the theme's own generated stylesheet. That
+// stylesheet, and any uploaded logo, live in an "appearance" folder inside the
+// theme's folder, ie: themes/Lyris/appearance/. That folder is inside the web
+// root and is not access-protected the way uploads/ usually is, so the files are
+// reachable by the browser wherever the site is deployed.
+//
+// The generated stylesheet is the record of the settings: it carries them in a
+// machine-readable block at the top of the file, which is what the Appearance
+// page reads back. There is nothing else to keep in sync, per-theme settings
+// fall out of per-theme files, and deleting a theme's appearance folder is all
+// it takes to put that theme back to the defaults. See
+// formulize_buildAppearanceSettingsBlock() and formulize_readAppearanceCssSettings().
 
 include_once XOOPS_ROOT_PATH . "/modules/formulize/include/functions.php";
 
@@ -197,16 +204,27 @@ function formulize_appearanceFontMap() {
 }
 
 /**
- * The names of all appearance config items, as stored in the module configs
+ * The names of all the appearance settings, ie: the keys of a settings array
  *
- * @return array of config names
+ * @return array of setting names
  */
-function formulize_appearanceConfigNames() {
+function formulize_appearanceSettingNames() {
     $names = array('appearance_font', 'appearance_customfont', 'appearance_logo');
     foreach (array_keys(formulize_appearanceColourMap()) as $key) {
         $names[] = 'appearance_' . $key;
     }
     return $names;
+}
+
+/**
+ * A settings array with every setting empty, ie: every setting at its default.
+ * An empty value always means "use the default", never "no value at all", so
+ * defaults are free to evolve without every site being pinned to today's.
+ *
+ * @return array setting name => ''
+ */
+function formulize_defaultAppearanceSettings() {
+    return array_fill_keys(formulize_appearanceSettingNames(), '');
 }
 
 /**
@@ -300,123 +318,206 @@ function formulize_themeSupportsAppearance($theme = null) {
 }
 
 /**
- * Split a stored appearance config value into its per-theme values.
- *
- * Values are stored one config item per setting, with the per-theme values
- * packed into the item as "Lyris:#ff0000|Anari:#00ff00". Neither ":" nor "|"
- * can occur in a theme folder name that we accept or in any value we write
- * (colours are hex, fonts are keys or alphanumeric family names, logos are
- * filenames we generate), so the packing is unambiguous.
- *
- * A value with no ":" in it is in the pre-per-theme format, when there was one
- * site-wide set of settings. That is exactly what the site is displaying today,
- * so it is read as belonging to the site's default theme. Nothing is rewritten
- * on read: the old value keeps working until the admin saves that theme, at
- * which point formulize_setAppearanceSettingValue() carries it over into the
- * per-theme format (see the note there).
- *
- * @param string $stored the raw config value
- * @return array theme folder name => value
- */
-function formulize_parseAppearanceSettingValue($stored) {
-    $stored = trim((string) $stored);
-    if ($stored === '') {
-        return array();
-    }
-    if (strpos($stored, ':') === false) {
-        $default = formulize_getDefaultAppearanceTheme();
-        return $default ? array($default => $stored) : array();
-    }
-    $values = array();
-    foreach (explode('|', $stored) as $entry) {
-        $position = strpos($entry, ':');
-        if ($position === false OR $position === 0) {
-            continue;
-        }
-        $values[substr($entry, 0, $position)] = trim(substr($entry, $position + 1));
-    }
-    return $values;
-}
-
-/**
- * Pack per-theme values back into a single config value. Themes with an empty
- * value are dropped, so "no entry" and "set to the default" are the same thing.
- * Entries for themes that are no longer installed are kept as they are found,
- * so removing a theme temporarily (or renaming a folder) doesn't throw away
- * its settings.
- *
- * @param array $values theme folder name => value
- * @return string the packed config value
- */
-function formulize_encodeAppearanceSettingValue($values) {
-    $parts = array();
-    foreach ($values as $theme => $value) {
-        $value = str_replace(array('|', ':'), '', trim((string) $value));
-        if ($value === '' OR $theme === '' OR strpbrk($theme, '|:') !== false) {
-            continue;
-        }
-        $parts[] = $theme . ':' . $value;
-    }
-    return implode('|', $parts);
-}
-
-/**
- * Set one theme's value inside a stored config value, leaving every other
- * theme's value alone.
- *
- * Because formulize_parseAppearanceSettingValue() maps a pre-per-theme value
- * onto the site's default theme, the first save after upgrading rewrites the
- * item in the per-theme format with the old site-wide setting intact as the
- * default theme's setting. Existing settings are therefore never lost, and
- * never silently applied to themes the admin hasn't configured.
- *
- * @param string $stored the raw config value being updated
- * @param string $theme  theme folder name to set the value for
- * @param string $value  the new value ('' to clear it)
- * @return string the packed config value to store
- */
-function formulize_setAppearanceSettingValue($stored, $theme, $value) {
-    $values = formulize_parseAppearanceSettingValue($stored);
-    if (trim((string) $value) === '') {
-        unset($values[$theme]);
-    } else {
-        $values[$theme] = $value;
-    }
-    return formulize_encodeAppearanceSettingValue($values);
-}
-
-/**
- * Read a theme's saved appearance settings from the module configs. Empty
- * string means "use the theme default". Cached per theme for the request.
- *
- * @param string|null $theme theme folder name, defaults to the theme rendering the page
- * @return array config name => saved value (all appearance_* keys present)
- */
-function formulize_getAppearanceSettings($theme = null) {
-    static $cache = array();
-    $theme = formulize_resolveAppearanceTheme($theme);
-    if (!isset($cache[$theme])) {
-        $config_handler = xoops_gethandler('config');
-        $formulizeConfig = $config_handler->getConfigsByCat(0, getFormulizeModId());
-        $settings = array();
-        foreach (formulize_appearanceConfigNames() as $name) {
-            $values = formulize_parseAppearanceSettingValue(isset($formulizeConfig[$name]) ? $formulizeConfig[$name] : '');
-            $settings[$name] = isset($values[$theme]) ? trim($values[$theme]) : '';
-        }
-        $cache[$theme] = $settings;
-    }
-    return $cache[$theme];
-}
-
-/**
  * Validate a user-supplied colour value. Only hex colours are accepted.
  *
  * @param string $value the submitted colour
  * @return string the normalized hex colour, or '' if invalid/empty
  */
 function formulize_sanitizeAppearanceColour($value) {
-    $value = trim($value);
+    $value = trim((string) $value);
     return preg_match('/^#[0-9a-fA-F]{6}$/', $value) ? strtolower($value) : '';
+}
+
+/**
+ * Validate a user-supplied font family name. Google Font families are letters,
+ * digits and spaces, and keeping to that also keeps the name safe to write into
+ * a CSS comment and a Google Fonts URL.
+ *
+ * @param string $value the submitted family name
+ * @return string the cleaned family name, or '' if nothing usable is left
+ */
+function formulize_sanitizeAppearanceFontFamily($value) {
+    return trim(preg_replace('/[^a-zA-Z0-9 ]/', '', (string) $value));
+}
+
+/**
+ * Normalize a set of appearance settings: every setting name present, every
+ * value either valid or empty (meaning "use the default"). Anything that isn't
+ * recognized is dropped rather than passed along.
+ *
+ * Everything that writes settings and everything that reads them goes through
+ * this one function, which is what makes the settings survive a round trip
+ * through the generated stylesheet: what is written out is exactly what is read
+ * back in. It is also what keeps a hand-edited or damaged stylesheet from
+ * pushing junk into the CSS or into the admin form.
+ *
+ * @param array $values setting name => raw value, any subset
+ * @return array setting name => clean value (all setting names present)
+ */
+function formulize_sanitizeAppearanceSettings($values) {
+    $clean = formulize_defaultAppearanceSettings();
+    foreach (formulize_appearanceColourMap() as $key => $colour) {
+        $value = formulize_sanitizeAppearanceColour(isset($values['appearance_' . $key]) ? $values['appearance_' . $key] : '');
+        // nothing is recorded for a colour that is the design default, so the defaults can evolve
+        $clean['appearance_' . $key] = ($value == $colour['default']) ? '' : $value;
+    }
+    $fonts = formulize_appearanceFontMap();
+    $font = isset($values['appearance_font']) ? trim((string) $values['appearance_font']) : '';
+    $customFont = formulize_sanitizeAppearanceFontFamily(isset($values['appearance_customfont']) ? $values['appearance_customfont'] : '');
+    if (!isset($fonts[$font]) OR ($font == 'custom' AND $customFont === '')) {
+        $font = 'geist'; // not a font we offer, or a custom font with no usable family name
+    }
+    $clean['appearance_font'] = ($font == 'geist') ? '' : $font;
+    $clean['appearance_customfont'] = ($font == 'custom') ? $customFont : '';
+    // the logo is a bare filename in the theme's appearance folder, never a path
+    $logo = basename(trim((string) (isset($values['appearance_logo']) ? $values['appearance_logo'] : '')));
+    $clean['appearance_logo'] = preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $logo) ? $logo : '';
+    return $clean;
+}
+
+/**
+ * The lines that delimit the settings block inside a generated stylesheet. The
+ * start marker carries a format version, so a stylesheet written by a later
+ * version of Formulize is not misread by this one: it simply doesn't match, and
+ * the defaults apply until the file is regenerated.
+ *
+ * @return array with 'start' and 'end'
+ */
+function formulize_appearanceSettingsBlockMarkers() {
+    return array(
+        'start' => 'BEGIN FORMULIZE APPEARANCE SETTINGS v1',
+        'end' => 'END FORMULIZE APPEARANCE SETTINGS',
+    );
+}
+
+/**
+ * Build the settings block that goes at the top of a theme's generated
+ * stylesheet, as a CSS comment. This block is where a theme's appearance
+ * settings are recorded, and formulize_readAppearanceCssSettings() reads them
+ * back out of it.
+ *
+ * A comment block, rather than the custom properties further down the file, is
+ * what carries the settings, for two reasons. The properties are derived (a
+ * single colour produces half a dozen color-mix() tokens) so reversing them
+ * would be guesswork, and not every setting is a CSS value in the first place:
+ * the chosen font is a key into our own list, and the logo is a filename. One
+ * block holds all of them in the form they were entered in.
+ *
+ * Only settings that differ from the defaults are written, so a theme left
+ * alone gets an empty block, which reads back as "everything default".
+ *
+ * @param array $settings the settings to record, already sanitized
+ * @param string $theme theme folder name, for the human-readable heading
+ * @return string the CSS comment block, no trailing newline
+ */
+function formulize_buildAppearanceSettingsBlock($settings, $theme) {
+    $markers = formulize_appearanceSettingsBlockMarkers();
+    $lines = array(
+        '/* Formulize appearance settings for the ' . preg_replace('/[^A-Za-z0-9._ -]/', '', (string) $theme) . ' theme.',
+        ' *',
+        ' * Generated from the Appearance page in the Formulize admin UI, and rewritten',
+        ' * every time those settings are saved. The block below is where the settings',
+        ' * themselves are kept, and it is what the Appearance page reads them back out',
+        ' * of. If this file is deleted, or the block below is removed or damaged, the',
+        ' * built-in defaults apply.',
+        ' *',
+        ' * ' . $markers['start'],
+    );
+    foreach (formulize_appearanceSettingNames() as $name) {
+        if (isset($settings[$name]) AND $settings[$name] !== '') {
+            $lines[] = ' * ' . $name . ': ' . $settings[$name];
+        }
+    }
+    $lines[] = ' * ' . $markers['end'];
+    $lines[] = ' */';
+    return implode("\n", $lines);
+}
+
+/**
+ * Read the appearance settings back out of a generated stylesheet.
+ *
+ * The whole block has to be there: if the start marker is missing the file was
+ * not written by us (or predates the format), and if the end marker is missing
+ * the file was truncated part way through the settings. Either way the answer
+ * is "no settings here", so the caller falls back to the defaults rather than
+ * applying whichever half of the settings happened to survive. Individual
+ * values are validated by formulize_sanitizeAppearanceSettings(), so a single
+ * mangled line costs that one setting and nothing else.
+ *
+ * @param string $path path of the stylesheet to read
+ * @return array|false settings array, or false when the file has no usable settings block
+ */
+function formulize_readAppearanceCssSettings($path) {
+    if (!$path OR !is_file($path)) {
+        return false;
+    }
+    $css = @file_get_contents($path);
+    if ($css === false) {
+        return false;
+    }
+    $markers = formulize_appearanceSettingsBlockMarkers();
+    $start = strpos($css, $markers['start']);
+    $end = ($start === false) ? false : strpos($css, $markers['end'], $start);
+    if ($start === false OR $end === false) {
+        return false;
+    }
+    $values = array();
+    foreach (explode("\n", substr($css, $start, $end - $start)) as $line) {
+        if (preg_match('/^\s*\*?\s*(appearance_[a-z]+)\s*:\s*(.*?)\s*$/', $line, $match)) {
+            $values[$match[1]] = $match[2];
+        }
+    }
+    return formulize_sanitizeAppearanceSettings($values);
+}
+
+/**
+ * The appearance settings recorded in the module config items, which is where
+ * they were kept before the generated stylesheet became the record of them.
+ *
+ * Those config items are no longer written to. They are read only when a theme
+ * has no generated stylesheet yet, so a site that upgrades keeps exactly the
+ * colours, font and logo it already had, with no admin action: the next page
+ * render generates the stylesheet from these values (see
+ * formulize_renderAppearanceHead), and from then on the file is the record and
+ * these items are never consulted for that theme again.
+ *
+ * The old values were site-wide, so they are read as the settings of the site's
+ * default theme, which is the theme that is displaying them today. Other themes
+ * start from the defaults.
+ *
+ * @param string $theme theme folder name
+ * @return array settings array
+ */
+function formulize_getLegacyAppearanceSettings($theme) {
+    if ($theme === '' OR $theme !== formulize_getDefaultAppearanceTheme()) {
+        return formulize_defaultAppearanceSettings();
+    }
+    $config_handler = xoops_gethandler('config');
+    $formulizeConfig = $config_handler->getConfigsByCat(0, getFormulizeModId());
+    $values = array();
+    foreach (formulize_appearanceSettingNames() as $name) {
+        $values[$name] = isset($formulizeConfig[$name]) ? $formulizeConfig[$name] : '';
+    }
+    return formulize_sanitizeAppearanceSettings($values);
+}
+
+/**
+ * A theme's appearance settings, read out of that theme's generated stylesheet,
+ * falling back to the settings a pre-upgrade site left in the module configs,
+ * and to the defaults. Empty string means "use the default". Cached per theme
+ * for the request.
+ *
+ * @param string|null $theme theme folder name, defaults to the theme rendering the page
+ * @return array setting name => value (all setting names present)
+ */
+function formulize_getAppearanceSettings($theme = null) {
+    static $cache = array();
+    $theme = formulize_resolveAppearanceTheme($theme);
+    if (!isset($cache[$theme])) {
+        $settings = formulize_readAppearanceCssSettings(formulize_getAppearanceCssPath($theme));
+        $cache[$theme] = ($settings === false) ? formulize_getLegacyAppearanceSettings($theme) : $settings;
+    }
+    return $cache[$theme];
 }
 
 /**
@@ -433,7 +534,7 @@ function formulize_getAppearanceFont($settings = null) {
     $googleFamily = $fonts[$choice]['google'];
     $stack = $fonts[$choice]['stack'];
     if ($choice == 'custom') {
-        $family = trim(preg_replace('/[^a-zA-Z0-9 ]/', '', $settings['appearance_customfont']));
+        $family = formulize_sanitizeAppearanceFontFamily($settings['appearance_customfont']);
         if ($family) {
             $googleFamily = str_replace(' ', '+', $family) . ':wght@400;500;600;700';
             $stack = "'" . $family . "', " . $fonts['system']['stack'];
@@ -655,42 +756,56 @@ function formulize_getAppearanceCssOverrides($settings = null) {
 }
 
 /**
- * Build the appearance stylesheet for a set of settings, from the
- * appearance.css.tpl Smarty template.
+ * Build a theme's appearance stylesheet for a set of settings, from the
+ * appearance.css.tpl Smarty template. The settings themselves go into the file
+ * as a comment block at the top (see formulize_buildAppearanceSettingsBlock),
+ * followed by the webfont import and the custom property overrides they call for.
  *
- * @param array|null $settings appearance settings to use, defaults to the saved ones
+ * @param array|null $settings appearance settings to use, defaults to the theme's saved ones
+ * @param string|null $theme   theme folder name, defaults to the active theme
  * @return string the CSS
  */
-function formulize_buildAppearanceCss($settings = null) {
+function formulize_buildAppearanceCss($settings = null, $theme = null) {
+    $theme = formulize_resolveAppearanceTheme($theme);
+    $settings = is_array($settings)
+        ? formulize_sanitizeAppearanceSettings($settings)
+        : formulize_getAppearanceSettings($theme);
     $font = formulize_getAppearanceFont($settings);
     require_once XOOPS_ROOT_PATH . '/class/template.php';
     $tpl = new XoopsTpl();
+    $tpl->assign('settingsBlock', formulize_buildAppearanceSettingsBlock($settings, $theme));
     $tpl->assign('fontUrl', $font['url']);
     $tpl->assign('overrides', formulize_getAppearanceCssOverrides($settings));
     return $tpl->fetch('file:' . XOOPS_ROOT_PATH . '/modules/formulize/templates/appearance.css.tpl');
 }
 
 /**
- * Regenerate a theme's appearance stylesheet and write it to that theme's
- * appearance folder. Called when settings are saved, and lazily by
- * formulize_renderAppearanceHead when the file is missing. The file is always
- * generated, even with all-default settings, so themes can link it
- * unconditionally (the default file just imports the default webfont).
+ * Write a theme's appearance stylesheet into that theme's appearance folder.
+ * This is how appearance settings are saved: the file is the record of them, so
+ * a failure here means the settings were not saved at all, and callers must say
+ * so rather than reporting success (the Appearance page does, and warns about an
+ * unwritable folder before the admin fills the form in).
  *
- * @param array|null $settings appearance settings to use, defaults to the saved
- *                             ones. Pass the values explicitly when regenerating
- *                             right after a save, to sidestep stale config caches.
+ * Also called lazily by formulize_renderAppearanceHead when a theme has no
+ * stylesheet yet. The file is always generated, even with all-default settings,
+ * so themes can link it unconditionally (the default file just imports the
+ * default webfont).
+ *
+ * @param array|null $settings appearance settings to write, defaults to the
+ *                             theme's current ones
  * @param string|null $theme   theme folder name, defaults to the active theme
  * @return boolean whether the file was written successfully
  */
 function formulize_regenerateAppearanceCss($settings = null, $theme = null) {
     $theme = formulize_resolveAppearanceTheme($theme);
-    $settings = is_array($settings) ? $settings : formulize_getAppearanceSettings($theme);
     $dir = formulize_prepareAppearanceDir($theme);
     if ($dir === false) {
         return false;
     }
-    return file_put_contents($dir . '/appearance.css', formulize_buildAppearanceCss($settings)) !== false;
+    $css = formulize_buildAppearanceCss($settings, $theme);
+    $written = (file_put_contents($dir . '/appearance.css', $css) !== false);
+    clearstatcache(true, $dir . '/appearance.css'); // the file's existence and mtime are read right after this
+    return $written;
 }
 
 /**
@@ -700,9 +815,12 @@ function formulize_regenerateAppearanceCss($settings = null, $theme = null) {
  * own stylesheet links, so the overrides win the cascade.
  *
  * The settings and the stylesheet are those of the theme rendering the page,
- * so each theme gets its own look. If the stylesheet can't be written (a theme
- * folder the web server has no write access to), the same CSS is emitted inline
- * instead, so the configured appearance is never simply lost.
+ * so each theme gets its own look. Regenerating the file when it is missing is
+ * also what carries a pre-upgrade site's settings out of the module configs and
+ * into the file (see formulize_getLegacyAppearanceSettings). If the stylesheet
+ * can't be written (a theme folder the web server has no write access to), the
+ * same CSS is emitted inline instead, so the configured appearance is never
+ * simply lost.
  *
  * @return string HTML to print in the head, after the theme stylesheet links
  */
@@ -711,7 +829,9 @@ function formulize_renderAppearanceHead() {
     $cssPath = formulize_getAppearanceCssPath($theme);
     $cssExists = file_exists($cssPath);
     if (!$cssExists) {
-        $cssExists = formulize_regenerateAppearanceCss(null, $theme);
+        // settings are read before the file is written, so the values that go into it
+        // are the ones this page is already rendering with, legacy or default
+        $cssExists = formulize_regenerateAppearanceCss(formulize_getAppearanceSettings($theme), $theme);
     }
     $html = '';
     $font = formulize_getAppearanceFont(formulize_getAppearanceSettings($theme));
@@ -722,7 +842,7 @@ function formulize_renderAppearanceHead() {
     if ($cssExists) {
         $html .= '<link rel="stylesheet" type="text/css" media="all" href="' . formulize_getAppearanceUrl($theme) . '/appearance.css?v=' . filemtime($cssPath) . '" />' . "\n";
     } else {
-        $html .= '<style type="text/css" media="all">' . "\n" . formulize_buildAppearanceCss(formulize_getAppearanceSettings($theme)) . "\n" . '</style>' . "\n";
+        $html .= '<style type="text/css" media="all">' . "\n" . formulize_buildAppearanceCss(formulize_getAppearanceSettings($theme), $theme) . "\n" . '</style>' . "\n";
     }
     return $html;
 }
