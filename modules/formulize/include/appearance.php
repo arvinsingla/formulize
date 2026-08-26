@@ -756,10 +756,25 @@ function formulize_getAppearanceCssOverrides($settings = null) {
 }
 
 /**
- * Build a theme's appearance stylesheet for a set of settings, from the
- * appearance.css.tpl Smarty template. The settings themselves go into the file
- * as a comment block at the top (see formulize_buildAppearanceSettingsBlock),
- * followed by the webfont import and the custom property overrides they call for.
+ * Build a theme's appearance stylesheet for a set of settings: the settings
+ * themselves as a comment block at the top (see
+ * formulize_buildAppearanceSettingsBlock), followed by the webfont import and
+ * the custom property overrides they call for.
+ *
+ * Assembled here in PHP rather than from a Smarty template, deliberately. This
+ * file is the record of a theme's appearance settings, so it has to come out
+ * complete every single time, and a template could not promise that: Smarty
+ * compiles templates into templates_c and only re-checks the source when the
+ * "update module templates from file" setting is on, which on a normal site it
+ * is not. A site that had generated a stylesheet under an earlier version of
+ * Formulize would keep rendering that version's template until templates_c was
+ * cleared by hand, silently dropping the settings block from every stylesheet
+ * it wrote from then on - and with it the record of the uploaded logo, whose
+ * filename that block is the only place to keep. The colours would still look
+ * right (they are custom properties further down the file, which the older
+ * template still emitted), so nothing would look wrong until someone noticed
+ * their logo had stopped appearing. Building the file in PHP means the code
+ * that writes it and the code that reads it back can never fall out of step.
  *
  * @param array|null $settings appearance settings to use, defaults to the theme's saved ones
  * @param string|null $theme   theme folder name, defaults to the active theme
@@ -771,12 +786,19 @@ function formulize_buildAppearanceCss($settings = null, $theme = null) {
         ? formulize_sanitizeAppearanceSettings($settings)
         : formulize_getAppearanceSettings($theme);
     $font = formulize_getAppearanceFont($settings);
-    require_once XOOPS_ROOT_PATH . '/class/template.php';
-    $tpl = new XoopsTpl();
-    $tpl->assign('settingsBlock', formulize_buildAppearanceSettingsBlock($settings, $theme));
-    $tpl->assign('fontUrl', $font['url']);
-    $tpl->assign('overrides', formulize_getAppearanceCssOverrides($settings));
-    return $tpl->fetch('file:' . XOOPS_ROOT_PATH . '/modules/formulize/templates/appearance.css.tpl');
+    $css = formulize_buildAppearanceSettingsBlock($settings, $theme) . "\n";
+    if ($font['url']) {
+        $css .= '@import url("' . $font['url'] . '");' . "\n";
+    }
+    $overrides = formulize_getAppearanceCssOverrides($settings);
+    if ($overrides) {
+        $css .= ":root {\n";
+        foreach ($overrides as $token => $value) {
+            $css .= '  ' . $token . ': ' . $value . ";\n";
+        }
+        $css .= "}\n";
+    }
+    return $css;
 }
 
 /**
