@@ -115,7 +115,7 @@ if ($xoopsUser) {
         <a class="fz-header__action-link" href="<{$icms_url}>/edituser.php">Account</a>
         <a class="fz-header__action-link" href="<{$icms_url}>/user.php?op=logout">Sign out</a>
       <{else}>
-        <a class="fz-header__action-link" href="<{$icms_url}><{$formulize_redirect}>">Sign in</a>
+        <a class="fz-header__action-link" href="<{$icms_url}><{if $formulize_redirect}><{$formulize_redirect}><{else}>/user.php<{/if}>">Sign in</a>
       <{/if}>
     </div>
 
