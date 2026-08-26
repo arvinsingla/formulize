@@ -934,8 +934,5 @@ define("_formulize_USERACCOUNT_PWREPEATDESC", "Type the password twice for confi
 // Autocomplete component - removing a selected value (issue #92)
 define("_formulize_AUTOCOMPLETE_REMOVE", "Remove");
 define("_formulize_AUTOCOMPLETE_REMOVE_ITEM", "Remove %s");
-define("_formulize_AUTOCOMPLETE_CONFIRM_TITLE", "Remove selection");
 define("_formulize_AUTOCOMPLETE_CONFIRM_MESSAGE", "Remove %s from the selected items?");
 define("_formulize_AUTOCOMPLETE_CONFIRM_MESSAGE_GENERIC", "Remove this item from the selected items?");
-define("_formulize_AUTOCOMPLETE_CONFIRM_OK", "Remove");
-define("_formulize_AUTOCOMPLETE_CONFIRM_CANCEL", "Cancel");

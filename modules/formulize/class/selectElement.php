@@ -1355,7 +1355,7 @@ class formulizeSelectElementHandler extends formulizeBaseClassForListsElementHan
 	 * Emit the autocomplete component's UI strings for the browser, once per page.
 	 *
 	 * The component's behaviour (the chip markup and the removal confirmation
-	 * modal) lives in modules/formulize/include/js/autocomplete.js so that it is
+	 * prompt) lives in modules/formulize/include/js/autocomplete.js so that it is
 	 * the same in every theme. That file has English fallbacks; this puts the
 	 * site's own language file in front of them.
 	 *
@@ -1369,11 +1369,8 @@ class formulizeSelectElementHandler extends formulizeBaseClassForListsElementHan
 		$lang = array(
 			'remove'                => _formulize_AUTOCOMPLETE_REMOVE,
 			'removeItem'            => _formulize_AUTOCOMPLETE_REMOVE_ITEM,
-			'confirmTitle'          => _formulize_AUTOCOMPLETE_CONFIRM_TITLE,
 			'confirmMessage'        => _formulize_AUTOCOMPLETE_CONFIRM_MESSAGE,
 			'confirmMessageGeneric' => _formulize_AUTOCOMPLETE_CONFIRM_MESSAGE_GENERIC,
-			'confirmOk'             => _formulize_AUTOCOMPLETE_CONFIRM_OK,
-			'confirmCancel'         => _formulize_AUTOCOMPLETE_CONFIRM_CANCEL,
 		);
 		return "<script type='text/javascript'>window.formulizeAutocompleteLang = ".json_encode($lang).";</script>\n";
 	}

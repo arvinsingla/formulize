@@ -3351,11 +3351,19 @@ input[type="time"] { font-family: var(--font-sans); }
 }
 
 /* The chip's remove button. Only this removes the value, and only after the
-   component's confirmation modal is accepted. */
+   browser's confirm() dialog is accepted.
+
+   Lyris's blanket `button:not([class*="fz-"]):not([class*="formulize_button"])`
+   rule below paints every bare button as a 32px-tall bordered surface with a
+   var(--r-2) radius. It ties on specificity (0-2-1) with the component's own
+   `.auto_multi button.auto_multi_remove` base rule and wins on source order,
+   because the theme sheet loads after formulize.css. So this icon button has to
+   restate the box metrics as well as the surface to opt back out of all of it. */
 .fz-form-screen .formulize_autocomplete_selections button.auto_multi_remove,
 .fz-drawer__body .formulize_autocomplete_selections button.auto_multi_remove {
-  /* Lyris's blanket `button:not([class*="fz-"])` rule paints every bare button
-     as a bordered surface; this is an icon button and opts back out of it. */
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
   background: transparent;
   border: 0;
   box-shadow: none;
@@ -3363,56 +3371,18 @@ input[type="time"] { font-family: var(--font-sans); }
   color: var(--c-text-muted);
   font-size: 14px;
 }
+/* Hover/focus tints the glyph and nothing else. The background has to be stated
+   explicitly, because the blanket rule's :hover (0-3-1) otherwise outranks the
+   component's base rule and fills the button. Filling it here was the bug: it
+   painted a var(--c-surface) box - white, and rounded-rect rather than round,
+   since the radius was leaking from the blanket rule too. */
 .fz-form-screen .formulize_autocomplete_selections button.auto_multi_remove:hover,
 .fz-form-screen .formulize_autocomplete_selections button.auto_multi_remove:focus,
 .fz-drawer__body .formulize_autocomplete_selections button.auto_multi_remove:hover,
 .fz-drawer__body .formulize_autocomplete_selections button.auto_multi_remove:focus {
-  background: var(--c-surface);
+  background: transparent;
   box-shadow: none;
   color: var(--c-danger);
-}
-
-/* ---------- Confirmation modal → Lyris card + buttons ----------
-   The component ships a neutral base skin; these rules are unscoped because the
-   modal is appended to <body>, outside .fz-form-screen. */
-.formulize-confirm-modal-overlay {
-  background: rgba(15, 23, 42, 0.45);
-}
-.formulize-confirm-modal {
-  padding: var(--s-5, 20px);
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-2);
-  box-shadow: var(--sh-4);
-  font-family: var(--font-sans);
-  color: var(--c-text);
-}
-.formulize-confirm-modal-message {
-  font-size: var(--fs-14);
-  color: var(--c-text);
-}
-.formulize-confirm-modal-overlay .formulize-confirm-modal button.formulize-confirm-modal-button {
-  border-radius: var(--r-1);
-  border: 1px solid var(--c-border-strong);
-  background: var(--c-surface);
-  color: var(--c-text);
-  font-family: var(--font-sans);
-  font-size: var(--fs-14);
-  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
-}
-.formulize-confirm-modal-overlay .formulize-confirm-modal button.formulize-confirm-modal-button:hover {
-  background: var(--c-surface-3);
-  border-color: var(--c-text-muted);
-}
-.formulize-confirm-modal-overlay .formulize-confirm-modal button.formulize-confirm-modal-confirm {
-  background: var(--c-danger);
-  border-color: var(--c-danger);
-  color: #fff;
-}
-.formulize-confirm-modal-overlay .formulize-confirm-modal button.formulize-confirm-modal-confirm:hover {
-  background: var(--c-danger);
-  border-color: var(--c-danger);
-  filter: brightness(0.93);
 }
 
 /* ---------- jQuery UI autocomplete menu → .fz-listbox surface ----------

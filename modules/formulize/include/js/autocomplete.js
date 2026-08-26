@@ -40,11 +40,8 @@ function triggerChangeOnMultiValueAutocomplete(elementId) {
 window.formulizeAutocompleteLang = window.formulizeAutocompleteLang || {
 	remove: 'Remove',
 	removeItem: 'Remove %s',
-	confirmTitle: 'Remove selection',
 	confirmMessage: 'Remove %s from the selected items?',
-	confirmMessageGeneric: 'Remove this item from the selected items?',
-	confirmOk: 'Remove',
-	confirmCancel: 'Cancel'
+	confirmMessageGeneric: 'Remove this item from the selected items?'
 };
 
 function formulizeAutocompleteText(key, substitution) {
@@ -78,90 +75,11 @@ function formulizeBuildAutocompleteChip(elementId, value, label) {
 }
 
 // ---------------------------------------------------------------------------
-// Confirmation modal. Deliberately a small self-contained widget rather than a
-// jQuery-UI dialog, so it carries no widget-library chrome and every theme can
-// skin it with the .formulize-confirm-modal* classes. Base appearance lives in
-// modules/formulize/templates/css/formulize.css.
-//
-// message  - text shown in the body of the modal
-// onConfirm - callback run when the user confirms
-// ---------------------------------------------------------------------------
-function formulizeConfirmModal(message, onConfirm) {
-
-	var previouslyFocused = document.activeElement;
-
-	var overlay = jQuery('<div></div>').addClass('formulize-confirm-modal-overlay');
-	var modal = jQuery('<div></div>')
-		.addClass('formulize-confirm-modal')
-		.attr('role', 'dialog')
-		.attr('aria-modal', 'true')
-		.attr('aria-label', formulizeAutocompleteText('confirmTitle'));
-	jQuery('<p></p>').addClass('formulize-confirm-modal-message').text(message).appendTo(modal);
-
-	var actions = jQuery('<div></div>').addClass('formulize-confirm-modal-actions').appendTo(modal);
-	var cancelButton = jQuery('<button></button>')
-		.attr('type', 'button')
-		.addClass('formulize-confirm-modal-button formulize-confirm-modal-cancel')
-		.text(formulizeAutocompleteText('confirmCancel'))
-		.appendTo(actions);
-	var confirmButton = jQuery('<button></button>')
-		.attr('type', 'button')
-		.addClass('formulize-confirm-modal-button formulize-confirm-modal-confirm')
-		.text(formulizeAutocompleteText('confirmOk'))
-		.appendTo(actions);
-
-	overlay.append(modal);
-
-	function close() {
-		jQuery(document).off('keydown.formulizeConfirmModal');
-		overlay.remove();
-		if(previouslyFocused && typeof previouslyFocused.focus === 'function') {
-			previouslyFocused.focus();
-		}
-	}
-
-	cancelButton.on('click', function(event) {
-		event.preventDefault();
-		close();
-	});
-	confirmButton.on('click', function(event) {
-		event.preventDefault();
-		close();
-		if(typeof onConfirm === 'function') {
-			onConfirm();
-		}
-	});
-	// clicking the backdrop, but not the modal itself, cancels
-	overlay.on('click', function(event) {
-		if(event.target === overlay[0]) {
-			close();
-		}
-	});
-	// escape cancels, tab is trapped inside the two buttons
-	jQuery(document).on('keydown.formulizeConfirmModal', function(event) {
-		if(event.key === 'Escape' || event.keyCode === 27) {
-			event.preventDefault();
-			close();
-		} else if(event.key === 'Tab' || event.keyCode === 9) {
-			event.preventDefault();
-			if(document.activeElement === confirmButton[0]) {
-				cancelButton.focus();
-			} else {
-				confirmButton.focus();
-			}
-		}
-	});
-
-	jQuery('body').append(overlay);
-	// cancel is the default focus, so that a stray enter/space does not remove anything
-	cancelButton.focus();
-}
-
-// ---------------------------------------------------------------------------
 // Removing a selected value. The only way to remove one is the chip's X button,
-// and the X always asks for confirmation first. (The old behaviour was that
-// clicking anywhere on the chip removed it immediately, with a strikethrough on
-// hover as the only warning - see issue #92.)
+// and the X always asks for confirmation first, using the browser's own
+// confirm() dialog. (The old behaviour was that clicking anywhere on the chip
+// removed it immediately, with a strikethrough on hover as the only warning -
+// see issue #92.)
 //
 // One delegated handler on the document covers every autocomplete on the page,
 // including chips added after load.
@@ -186,8 +104,8 @@ jQuery(document).ready(function() {
 		var message = label
 			? formulizeAutocompleteText('confirmMessage', label)
 			: formulizeAutocompleteText('confirmMessageGeneric');
-		formulizeConfirmModal(message, function() {
+		if(window.confirm(message)) {
 			removeFromMultiValueAutocomplete(value, elementId);
-		});
+		}
 	});
 });
