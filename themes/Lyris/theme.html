@@ -52,19 +52,25 @@ if ($xoopsUser) {
 }
 <{/php}>
 
-<div class="fz-app" id="fz-app" data-sidebar-default="<{if $xoops_requesturi|strstr:'/modules/formulize/application.php'}>open<{else}>closed<{/if}>">
+<div class="fz-app" id="fz-app" data-sidebar-default="<{if $xoops_requesturi|strstr:'/modules/formulize/application.php'}>open<{else}>closed<{/if}>" data-sidebar-persist="<{if $xoops_isuser}>1<{else}>0<{/if}>">
 
   <script>
   // Apply the saved sidebar state before first paint, so restoring a closed
   // sidebar doesn't replay the closing animation on every page load.
   // initSidebar() in script.js re-applies the same state later (no visual
   // change) and handles aria-expanded and the toggle behaviour.
+  //
+  // data-sidebar-persist="0" (anonymous users) means the collapsed state is
+  // never remembered across page loads: the sidebar holds the login block, so
+  // every page load starts with it visible. Anything other than "0" persists,
+  // so a stale compiled template degrades to the previous behaviour.
   (function () {
     try {
       var app = document.getElementById('fz-app');
-      var saved = localStorage.getItem('fz-sidebar-closed');
+      var persist = app.getAttribute('data-sidebar-persist') !== '0';
+      var saved = persist ? localStorage.getItem('fz-sidebar-closed') : null;
       var defaultOpen = app.getAttribute('data-sidebar-default') === 'open';
-      var closed = saved !== null ? saved === 'true' : !defaultOpen;
+      var closed = persist ? (saved !== null ? saved === 'true' : !defaultOpen) : false;
       if (closed && window.innerWidth > 768) {
         app.classList.add('fz-app--sidebar-closed');
       }
