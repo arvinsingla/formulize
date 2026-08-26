@@ -19,6 +19,13 @@ function initSidebar() {
 
   const STORAGE_KEY = 'fz-sidebar-closed';
   const isMobile = () => window.innerWidth <= 768;
+  // Anonymous users get a fresh, visible sidebar on every page load - it holds
+  // the login block, so a remembered "closed" state could strand them without
+  // a way to log in. They can still collapse it within the current page view.
+  // Anything other than "0" persists, so a stale compiled theme template
+  // degrades to the previous (persisting) behaviour rather than dropping it
+  // for logged in users.
+  const persistState = app.dataset.sidebarPersist !== '0';
 
   function setSidebarState(closed) {
     if (isMobile()) {
@@ -29,7 +36,9 @@ function initSidebar() {
       app.classList.remove('fz-app--sidebar-open');
     }
     toggle.setAttribute('aria-expanded', String(!closed));
-    try { localStorage.setItem(STORAGE_KEY, String(closed)); } catch (_) { /* ignore */ }
+    if (persistState) {
+      try { localStorage.setItem(STORAGE_KEY, String(closed)); } catch (_) { /* ignore */ }
+    }
   }
 
   toggle.addEventListener('click', () => {
@@ -42,9 +51,9 @@ function initSidebar() {
   // Restore saved state on desktop; use data attribute default otherwise
   if (!isMobile()) {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = persistState ? localStorage.getItem(STORAGE_KEY) : null;
       const defaultOpen = app.dataset.sidebarDefault === 'open';
-      setSidebarState(saved !== null ? saved === 'true' : !defaultOpen);
+      setSidebarState(persistState ? (saved !== null ? saved === 'true' : !defaultOpen) : false);
     } catch (_) { /* ignore */ }
   }
 
