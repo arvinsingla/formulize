@@ -1070,6 +1070,39 @@ button.formulize-ai-copy-btn:active {
 	padding: var(--formulize-drawer-pad-x);
 }
 
+/* Containment: nothing inside the drawer may be wider than the drawer, and no
+   field may demand more width than the drawer has.
+
+   Themes size their form fields for a full-width page, typically inside a
+   `@media (min-width: 768px)` block. That query is about the VIEWPORT, so it
+   still applies inside the drawer even though the drawer is a few hundred
+   pixels wide, and a `min-width: 700px` field would push the whole panel into
+   a horizontal scroll (`max-width` is powerless against `min-width`).
+
+   Keeping the content inside the panel is the drawer's own structural job, not
+   a second set of field styles - nothing here touches how a field LOOKS, and
+   `max-width` only ever shrinks, so a theme whose fields are already narrower
+   is unaffected. It is anchored on the component's id because a theme rule like
+   `.col2 input[type="text"]` scores the same 0,2,1 as any class-only selector
+   here and would win on stylesheet order; a theme that deliberately wants a
+   wider field in the drawer can still say so with an id-scoped rule of its own.
+
+   Button-like inputs are excluded: their width is their label, and capping it
+   clips the text rather than wrapping it. */
+#formulize-drawer .formulize-drawer__body img,
+#formulize-drawer .formulize-drawer__body input:not([type="button"]):not([type="submit"]):not([type="reset"]),
+#formulize-drawer .formulize-drawer__body select,
+#formulize-drawer .formulize-drawer__body textarea,
+#formulize-drawer .formulize-drawer__body table {
+	max-width: 100%;
+}
+
+#formulize-drawer .formulize-drawer__body input:not([type="button"]):not([type="submit"]):not([type="reset"]),
+#formulize-drawer .formulize-drawer__body select,
+#formulize-drawer .formulize-drawer__body textarea {
+	min-width: 0;
+}
+
 /* The AI assistant's own panel. It brings its own padding and its own internal
    scrolling (the chat log scrolls, the input row stays put), so unlike the
    entry body this one neither pads nor scrolls - it just hands its full height
