@@ -1103,6 +1103,31 @@ button.formulize-ai-copy-btn:active {
 	min-width: 0;
 }
 
+/* Capping the field itself is not enough when it sits inside shrink-to-fit
+   boxes. `.col1`/`.col2` are Formulize's own label/value columns and float, and
+   the autocomplete's wrapper is an inline-block (it has to hug its input, so the
+   magnifier stays pinned to the field's right edge). All three are sized by their
+   contents, so when a theme gives a field a definite `width` the whole chain
+   inherits it: Anari sets `width: 673px` on the autocomplete above its 768px
+   breakpoint, and that query is about the VIEWPORT, so it applies in full inside a
+   480px drawer. The input's min-content contribution is then 673px, every
+   shrink-to-fit ancestor becomes 673px wide, and the `max-width: 100%` above
+   resolves against a containing block that is itself 673px - so it clamps to
+   nothing and the panel gets a horizontal scrollbar.
+
+   Capping the ancestors breaks the cycle. `.form-row` is a block, so it has a
+   definite width taken from the drawer; clamping the columns and the wrapper to
+   `100%` of that gives the input's own `max-width: 100%` something smaller than
+   673px to resolve against, and the whole chain collapses to the drawer width.
+   Scoped to the drawer, so a theme's full-screen sizing is untouched, and
+   `max-width` only ever shrinks, so a theme whose fields already fit is
+   unaffected. */
+#formulize-drawer .formulize-drawer__body .col1,
+#formulize-drawer .formulize-drawer__body .col2,
+#formulize-drawer .formulize-drawer__body div.formulize_autocomplete {
+	max-width: 100%;
+}
+
 /* The AI assistant's own panel. It brings its own padding and its own internal
    scrolling (the chat log scrolls, the input row stays put), so unlike the
    entry body this one neither pads nor scrolls - it just hands its full height

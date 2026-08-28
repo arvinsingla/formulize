@@ -1485,16 +1485,23 @@ table.outer textarea[disabled],
     max-width: 270px;
 }
 
+/* The autocomplete field's full-width size on desktop. `width` sets the size we
+   want; `max-width: 100%` lets it give that up when the space it is in is
+   narrower - which is what happens in the right drawer, since this query is on
+   the VIEWPORT and so applies in full inside a ~480px panel.
+
+   `min-width: 0` is what lets it give that width up. It used to repeat 673px, and
+   because min-width beats max-width the field could never shrink at all, so it
+   punched out of the drawer and forced the panel to scroll sideways. It cannot
+   simply be dropped, though: the generic `.col2 input[type="text"]` rule further
+   down sets `min-width: 700px`, so with nothing stated here the field would
+   round *up* to 700px on desktop. Zero opts out of both. */
 @media (min-width: 768px) {
-    .form-row input.formulize_autocomplete {
-        width: 673px;
-        max-width: 673px;
-        min-width: 673px;
-    }
+    .form-row input.formulize_autocomplete,
     .form-row .col2 input.formulize_autocomplete {
         width: 673px;
-        max-width: 673px;
-        min-width: 673px;
+        max-width: 100%;
+        min-width: 0;
     }
 }
 

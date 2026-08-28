@@ -3304,11 +3304,22 @@ input[type="time"] { font-family: var(--font-sans); }
 
    Lyris's blanket `button:not([class*="fz-"]):not([class*="formulize_button"]):not([class*="formulize-drawer__btn"])`
    rule below paints every bare button as a 32px-tall bordered surface with a
-   var(--r-2) radius. It ties on specificity (0-2-1) with the component's own
-   `.auto_multi button.auto_multi_remove` base rule and wins on source order,
-   because the theme sheet loads after formulize.css. So this icon button has to
-   restate the box metrics as well as the surface to opt back out of all of it. */
-.fz-form-screen .formulize_autocomplete_selections button.auto_multi_remove {
+   var(--r-2) radius. It outranks the component's own `.auto_multi
+   button.auto_multi_remove` base rule in formulize.css, because the theme sheet
+   loads afterwards. So this icon button has to restate the box metrics as well
+   as the surface to opt back out of all of it.
+
+   The `.auto_multi` in the middle of the selector is load-bearing, and is NOT
+   redundant with `.formulize_autocomplete_selections`. Each `:not([class*=...])`
+   on the blanket rule contributes a full attribute-selector's worth of
+   specificity, so every exemption added to that rule raises it. It started at
+   0-2-1 with two `:not()`s; adding the third (`formulize-drawer__btn`, to keep
+   the drawer's own buttons off the blanket skin) took it to 0-3-1 — exactly
+   tying the two-class opt-out this rule used to be, which then lost on source
+   order and let the white bordered box come back. Keeping `.auto_multi` here
+   puts the opt-out at 0-4-1 (and 0-5-1 for :hover/:focus), so it stays ahead of
+   the blanket rule even if a fourth exemption is ever added to it. */
+.fz-form-screen .formulize_autocomplete_selections .auto_multi button.auto_multi_remove {
   width: 18px;
   height: 18px;
   border-radius: 50%;
@@ -3324,8 +3335,8 @@ input[type="time"] { font-family: var(--font-sans); }
    component's base rule and fills the button. Filling it here was the bug: it
    painted a var(--c-surface) box - white, and rounded-rect rather than round,
    since the radius was leaking from the blanket rule too. */
-.fz-form-screen .formulize_autocomplete_selections button.auto_multi_remove:hover,
-.fz-form-screen .formulize_autocomplete_selections button.auto_multi_remove:focus {
+.fz-form-screen .formulize_autocomplete_selections .auto_multi button.auto_multi_remove:hover,
+.fz-form-screen .formulize_autocomplete_selections .auto_multi button.auto_multi_remove:focus {
   background: transparent;
   box-shadow: none;
   color: var(--c-danger);
@@ -3413,7 +3424,7 @@ input[type="time"] { font-family: var(--font-sans); }
     height: 32px;
     padding: 0 6px 0 12px;
   }
-  .fz-form-screen .formulize_autocomplete_selections button.auto_multi_remove {
+  .fz-form-screen .formulize_autocomplete_selections .auto_multi button.auto_multi_remove {
     width: 24px;
     height: 24px;
     font-size: 16px;
