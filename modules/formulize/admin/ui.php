@@ -98,11 +98,17 @@ $_uiEnvWarning = ob_get_clean();
 
 $module_handler = xoops_gethandler('module');
 $formulizeModule = $module_handler->getByDirname('formulize');
-// patch needed if dbversion is out of date, or if the primary relationship doesn't exist, or there are pre-81 element types, or there is code that needs conversion to the new storage model
+// patch needed if dbversion is out of date, or if the primary relationship doesn't exist, or there are pre-81 element types, or the list screen table is missing editdestination, or there is code that needs conversion to the new storage model
+// The editdestination check is a state check rather than a version check on purpose: that column
+// shipped without a dbversion bump, so a site can be missing it while its stored dbversion already
+// equals the required one, and getDBVersion() < required can never be true for such a site. Without
+// this term the patch that adds it (012_list_screen_edit_destination.php) is correct but is never
+// offered, and the admin just keeps hitting "Unknown column 'editdestination'" on save. See issue #102.
 $formulizeNeedsDBPatch = (
 	($formulizeModule->getDBVersion() < intval($formulizeModule->getInfo('dbversion')))
   OR !primaryRelationshipExists()
   OR need81ElementTypeConversion()
+  OR !formulize_listScreenHasEditDestination()
   OR (file_exists(XOOPS_ROOT_PATH . '/modules/formulize/custom_code') ? true : codeInNeedOfConversion())
 );
 

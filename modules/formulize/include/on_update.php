@@ -6,6 +6,11 @@ if (!defined('XOOPS_ROOT_PATH')) {
 // bring in the legacy functions and checks that we rely on
 include_once XOOPS_ROOT_PATH . '/modules/formulize/include/common.php';
 include_once XOOPS_ROOT_PATH . '/modules/formulize/admin/patches/001_schema_migrations.php';
+// admin/ui.php decides whether to prompt for a database update partly on schema state, not just on
+// dbversion, so the check a state-gated patch performs has to be reachable outside the patch run.
+// The patch loop below include_once's this file anyway; naming it here is what makes ui.php's
+// dependency explicit, exactly as the 001 include above does.
+include_once XOOPS_ROOT_PATH . '/modules/formulize/admin/patches/012_list_screen_edit_destination.php';
 
 // Called by icms_module_update() after the module record has been updated in the DB.
 // $prev_dbversion is the dbversion that was in the modules table before this update run —
