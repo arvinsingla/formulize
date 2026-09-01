@@ -108,6 +108,13 @@ $prevPage   = isset($_REQUEST['prevpage']) ? intval($_REQUEST['prevpage']) : 0;
 
 if(isset($_POST['formulize_save']) AND $_POST['formulize_save']) {
     include XOOPS_ROOT_PATH.'/modules/formulize/include/readelements.php'; // saves the posted page, sets the saved/new entry id globals
+    // A save that created the entry leaves the client knowing it only as 'new'. Resolve the
+    // real id here so the re-render shows the entry that was just written rather than a
+    // fresh blank form - the same resolution displayFormPages does for later pages, which
+    // single page renders (the drawer's Save button) need too.
+    if(!$entry_id AND $fid AND isset($GLOBALS['formulize_newEntryIds'][$fid][0]) AND $GLOBALS['formulize_newEntryIds'][$fid][0]) {
+        $entry_id = intval($GLOBALS['formulize_newEntryIds'][$fid][0]);
+    }
 }
 
 // Subform add-new (drawer "Add" flow): create the requested linked sub entries with the
@@ -308,6 +315,13 @@ print $GLOBALS['xoopsSecurity']->getTokenHTML();
 print "<input type='hidden' name='formulize_entry_lock_token' value='".getEntryLockSecurityToken()."'>";
 
 print "</form>\n";
+
+// Which form buttons this screen presents, and what each is called. Decided by the same
+// core code that builds the full screen form's button tray (see formulize_resolveFormButtons
+// in formdisplay.php), recorded during the render above, and published here for the form
+// that was actually asked for - so a subform rendered inside it cannot answer for it. The
+// drawer builds its footer from this, which is what keeps the two surfaces consistent.
+print formulize_elementsOnlyButtonMetaJs($screen, $fid);
 
 // Rich-text (CKEditor) bootstrap. In a full page load formdisplay.php's drawJavascript()
 // loads the CKEditor library (via $xoTheme->addScript) and emits the initializeCKEditor /

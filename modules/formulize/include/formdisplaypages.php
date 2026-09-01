@@ -458,6 +458,36 @@ function displayFormPages($formframe, $entry_id, $mainform, $pages, $conditions=
 			'ofWord'             => _formulize_DMULTI_OF,
 		);
 		print "\n<script type=\"application/json\" class=\"fz-multipage-nav\">".json_encode($navMeta)."</script>\n";
+
+		// The form-level buttons the full page rendering shows alongside the paging
+		// controls: the screen's save and close buttons (savePageButton/closePageButton,
+		// on the same terms generatePrevNextButtonMarkup applies to them) and the
+		// printable view button, which the full page gets from displayForm's button tray
+		// and which is resolved here through the same shared function that tray uses.
+		// Recorded rather than printed so the endpoint can publish the entry belonging to
+		// the form it was actually asked to render. Recording it before displayForm runs
+		// is what makes this the version the host sees for a multipage screen.
+		$multipageSaveButtonText = (isset($navButtonText['saveButtonText']) AND $navButtonText['saveButtonText'] AND $usersCanSave) ? trans($navButtonText['saveButtonText']) : null;
+		$multipageCloseButtonText = (isset($navButtonText['closeButtonText']) AND $navButtonText['closeButtonText']) ? trans($navButtonText['closeButtonText']) : null;
+		$multipagePrintableViewText = (isset($navButtonText['printableViewButtonText']) AND $navButtonText['printableViewButtonText']) ? $navButtonText['printableViewButtonText'] : "{NOBUTTON}";
+		$multipagePrintableViewButtons = formulize_resolveFormButtons(
+			array(0=>"{NOBUTTON}", 1=>"{NOBUTTON}", 2=>"{NOBUTTON}", 3=>$multipagePrintableViewText),
+			array(), $fid, $uid, $entry_id, false, $printall, '');
+		$multipageButtonMeta = array(
+			'printableView' => isset($multipagePrintableViewButtons['printableview']) ? trans($multipagePrintableViewButtons['printableview']) : null,
+			'save'          => $multipageSaveButtonText,
+			// a multipage screen's "save and leave" is its previous/finish control, which
+			// the host already gets from the paging metadata above
+			'saveAndLeave'  => null,
+			'done'          => $multipageCloseButtonText,
+			'printAction'   => null,
+			'printFields'   => null,
+		);
+		if($multipageButtonMeta['printableView']) {
+			$multipageButtonMeta['printAction'] = XOOPS_URL . "/modules/formulize/printview.php";
+			$multipageButtonMeta['printFields'] = formulize_printViewFields(array(), array(0=>$fid), $formframe, $mainform, $entry_id, $forminfo['elements'], $screen, $settings);
+		}
+		formulize_registerElementsOnlyButtonMeta(formulize_elementsOnlyButtonMetaKey($screen, $fid), $multipageButtonMeta);
 	}
 
 	writeToFormulizeLog(array(

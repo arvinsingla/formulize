@@ -24,7 +24,7 @@
  *   openEntry({ fid, frid, sid, entryId, title }) - load a Formulize entry form
  *   openAI()                           - show the embedded AI assistant
  *   close()                            - close whichever panel is showing
- *   saveEntry()                        - save the loaded entry form
+ *   saveEntry()                        - save the loaded entry form and leave it
  *   subformAction(action, args)        - called by the elements-only endpoint's
  *                                        subform stubs (add/edit/delete/clone)
  *   initListView({ fid, frid, editDestination })
@@ -278,6 +278,17 @@
     // fz-multipage-nav metadata the endpoint emits; null for single-page forms.
     var currentEntryNav = null;
 
+    // fz-form-buttons metadata the endpoint emits: which form buttons this screen is
+    // configured to present, and what each is called. It is the server's answer, made by
+    // the same code that builds the full screen form's button tray, so the drawer never
+    // decides for itself which buttons exist or what they say.
+    var currentEntryButtons = null;
+
+    // Whether anything has been saved since this drawer session opened. A save that
+    // leaves the drawer open still has to be reflected in the list behind it when the
+    // drawer is eventually closed.
+    var savedDuringSession = false;
+
     // Subform drill-down state: the drawer shows one entry at a time, but a subform
     // element lets the user descend into a sub entry (and its subs, recursively).
     // currentFrame describes the entry loaded now; drawerStack holds its ancestors,
@@ -301,6 +312,14 @@
     function readDrawerMeta() {
         if (!bodyEl) { return null; }
         var el = bodyEl.querySelector('script.fz-drawer-meta');
+        if (!el) { return null; }
+        try { return JSON.parse(el.textContent); } catch (e) { return null; }
+    }
+
+    // Read the form-button metadata the endpoint emits (null when absent).
+    function readButtonMeta() {
+        if (!bodyEl) { return null; }
+        var el = bodyEl.querySelector('script.fz-form-buttons');
         if (!el) { return null; }
         try { return JSON.parse(el.textContent); } catch (e) { return null; }
     }
@@ -349,6 +368,7 @@
                 // left over from a previous drawer session.
                 window.formulizechanged = 0;
                 currentEntryNav = readNavMeta();
+                currentEntryButtons = readButtonMeta();
                 var meta = readDrawerMeta();
                 if (meta && typeof meta.title === 'string') { titleEl.textContent = meta.title; }
                 if (meta && currentFrame) {
@@ -377,6 +397,7 @@
         if (!ensureDom()) { return; }
         opts = opts || {};
         drawerStack = [];
+        savedDuringSession = false;
         currentFrame = { params: { fid: opts.fid, frid: opts.frid, sid: opts.sid, entryId: opts.entryId,
                                    subformElementId: opts.subformElementId }, page: 0 };
         openDrawer({ title: opts.title || '' });
@@ -451,10 +472,19 @@
 
     // ---- Footer ----------------------------------------------------------------
 
-    // Build the drawer footer controls for the loaded entry form. Single-page forms
-    // get Cancel + Save; multi-page forms (per the fz-multipage-nav metadata) get
-    // Previous, a "Page X of Y" indicator, and Next or Finish (when the next step is
-    // the thanks page).
+    // Build the drawer footer controls for the loaded entry form.
+    //
+    // Which buttons exist, and what each is called, is decided by the server and handed
+    // over as metadata: fz-form-buttons carries the screen's form-level buttons (the same
+    // ones addSubmitButton renders full screen -- printable view, save, save and leave,
+    // done/close, resolved from the screen's own settings), and fz-multipage-nav carries
+    // the paging controls. Nothing here invents a button or a label; the English strings
+    // remain only as a fallback for a host that publishes no metadata at all.
+    //
+    // One deliberate difference from the full screen form: a genuinely multi-page form
+    // always gets its Previous/Next controls here, even on a screen whose navstyle hides
+    // them in favour of page tabs, because the drawer suppresses those tabs and the user
+    // would otherwise have no way to move between pages.
     function renderEntryFooter() {
         if (!footEl || drawerMode === 'ai') { return; } // the AI panel has its own controls
         footEl.innerHTML = '';
@@ -465,40 +495,81 @@
 
         var nav = currentEntryNav;
         var multiPage = nav && nav.totalPages > 1;
+        var inSub = drawerStack.length > 0;
+        // Fallback for a host that publishes no button metadata: the plain save/cancel
+        // pair the drawer offered before the screen's configuration reached it.
+        var buttons = currentEntryButtons || { save: S().save, done: S().cancel };
 
-        if (!multiPage) {
-            if (drawerStack.length) {
-                footEl.appendChild(makeButton('‹ ' + S().back, 'ghost', goBack));
-            } else {
-                footEl.appendChild(makeButton(S().cancel, 'ghost', closeEntryDrawer));
-            }
-            footEl.appendChild(makeButton(S().save, 'primary', saveEntryFromDrawer));
-            return;
+        if (buttons.printableView && buttons.printAction) {
+            footEl.appendChild(makeButton(buttons.printableView, 'ghost', openPrintableView));
         }
 
-        // Labels come from the endpoint, which resolves the screen's configured button
-        // text and falls back to the standard Formulize language constants — the same
-        // precedence the full page rendering uses. An empty label means the screen has
-        // that button switched off, so we render nothing (matching core).
-        if (nav.previousPage && nav.previousButtonText) {
+        if (multiPage && nav.previousPage && nav.previousButtonText) {
             footEl.appendChild(makeButton('‹ ' + nav.previousButtonText, 'ghost', function () {
                 goToPage(nav.previousPage);
             }));
         }
 
-        var indicator = document.createElement('span');
-        indicator.className = 'formulize-drawer__page-indicator';
-        indicator.textContent = (nav.pageWord || S().page) + ' ' + nav.currentPage + ' ' +
-                                (nav.ofWord || S().of) + ' ' + nav.totalPages;
-        footEl.appendChild(indicator);
+        if (multiPage) {
+            var indicator = document.createElement('span');
+            indicator.className = 'formulize-drawer__page-indicator';
+            indicator.textContent = (nav.pageWord || S().page) + ' ' + nav.currentPage + ' ' +
+                                    (nav.ofWord || S().of) + ' ' + nav.totalPages;
+            footEl.appendChild(indicator);
+        }
 
-        if (nav.nextButtonText) {
+        // The done/close button leaves without saving. Inside a sub entry that means
+        // returning to the parent, which is what the same button does full screen. A
+        // screen with no close button still gets the Back control, so there is always a
+        // way out of a sub entry.
+        if (buttons.done) {
+            footEl.appendChild(makeButton(buttons.done, 'ghost', inSub ? goBack : closeEntryDrawer));
+        } else if (inSub) {
+            footEl.appendChild(makeButton('‹ ' + S().back, 'ghost', goBack));
+        }
+
+        if (buttons.saveAndLeave) {
+            footEl.appendChild(makeButton(buttons.saveAndLeave, 'ghost', saveEntryFromDrawer));
+        }
+
+        // Save means save, as it does full screen: the entry is written and stays open for
+        // more editing. On a multi-page form the Next/Finish control is the primary one.
+        if (buttons.save) {
+            footEl.appendChild(makeButton(buttons.save, multiPage ? 'ghost' : 'primary', saveAndStay));
+        }
+
+        if (multiPage && nav.nextButtonText) {
             footEl.appendChild(makeButton(
                 nav.nextIsThanks ? nav.nextButtonText : nav.nextButtonText + ' ›',
                 'primary',
                 nav.nextIsThanks ? finishDrawer : function () { goToPage(nav.nextPage); }
             ));
         }
+    }
+
+    // Open the printable view of the loaded entry, posting exactly what the full screen
+    // printable view button posts. The form is built here rather than server side because
+    // the fragment is injected inside the drawer's own form, and a nested form would be
+    // dropped by the parser.
+    function openPrintableView() {
+        var buttons = currentEntryButtons;
+        if (!buttons || !buttons.printAction) { return; }
+        var fields = buttons.printFields || {};
+        var form = document.createElement('form');
+        form.method = 'post';
+        form.action = buttons.printAction;
+        form.target = '_blank';
+        form.style.display = 'none';
+        Object.keys(fields).forEach(function (name) {
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = (fields[name] === null || typeof fields[name] === 'undefined') ? '' : String(fields[name]);
+            form.appendChild(input);
+        });
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
     }
 
     function makeButton(label, variant, onClick) {
@@ -604,9 +675,11 @@
     // Release locks, close the drawer, and refresh the host (the list, normally).
     // Used after the final save.
     function closeAndRefresh() {
+        savedDuringSession = false;
         releaseEntryLocks();
         closeDrawer();
         currentEntryNav = null;
+        currentEntryButtons = null;
         drawerStack = [];
         currentFrame = null;
         updateBackButton();
@@ -632,18 +705,44 @@
         popToParent();
     }
 
-    // Save a single-page entry. At the top level this closes the drawer and refreshes
+    // Save and stay on the entry — what the screen's Save button does full screen
+    // (submitForm to the same page / validateAndSubmit without 'leave'). The save goes
+    // through the elements-only endpoint, which persists the page and re-renders it, so a
+    // brand new entry comes back as the saved entry rather than a fresh blank form.
+    function saveAndStay() {
+        if (typeof jQuery === 'undefined') { return; }
+        var form = bodyEl ? bodyEl.querySelector('form') : null;
+        if (!form || !currentFrame) { return; }
+        if (currentEntryNav) {
+            if (!validateCurrentForm(form)) { return; }
+            if (formHasChanges()) { savedDuringSession = true; }
+            goToPage(currentEntryNav.currentPage);
+            return;
+        }
+        if (!formHasChanges()) { showDrawerNotice(S().noChanges); return; }
+        if (!validateCurrentForm(form)) { return; }
+        form.querySelectorAll('input[type="hidden"]').forEach(function (i) { i.disabled = false; });
+        var fd = new FormData(form);
+        fd.append('formulize_save', '1');
+        savedDuringSession = true;
+        releaseEntryLocks(); // the re-render acquires its own
+        fetchIntoDrawer(buildEntryUrl(currentFrame.params), { method: 'POST', body: fd });
+    }
+
+    // Save and leave the entry. At the top level this closes the drawer and refreshes
     // the list; in a sub entry it returns to the parent instead.
     function saveEntryFromDrawer() {
         if (typeof jQuery === 'undefined') { return; }
         var form = bodyEl ? bodyEl.querySelector('form') : null;
         if (!form) { return; }
+        // nothing to save, so this is just "leave" - which is what the full screen save
+        // and leave button does with an untouched form too
         if (!formHasChanges()) {
-            if (drawerStack.length) { popToParent(); return; } // nothing to save; act as "done"
-            showDrawerNotice(S().noChanges);
+            if (drawerStack.length) { popToParent(); } else { closeAndRefresh(); }
             return;
         }
         if (!validateCurrentForm(form)) { return; }
+        savedDuringSession = true;
         saveCurrentPage(form).then(drawerStack.length ? popToParent : closeAndRefresh);
     }
 
@@ -803,13 +902,21 @@
     // ---- Closing ---------------------------------------------------------------
 
     function closeEntryDrawer() {
+        // Save can now leave the drawer open, so a session may end with saved changes the
+        // list behind it has not seen yet.
+        var hostNeedsRefresh = savedDuringSession;
+        savedDuringSession = false;
         releaseEntryLocks();
         if (footEl) { footEl.innerHTML = ''; }
         currentEntryNav = null;
+        currentEntryButtons = null;
         drawerStack = [];
         currentFrame = null;
         updateBackButton();
         closeDrawer();
+        if (hostNeedsRefresh && typeof window.formulize.onEntrySaved === 'function') {
+            window.formulize.onEntrySaved();
+        }
         notifyHostClosed();
     }
 
