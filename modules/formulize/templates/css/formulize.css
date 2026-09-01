@@ -943,7 +943,7 @@ button.formulize-ai-copy-btn:active {
        </div>
        <div class="formulize-drawer__body">              (the entry form)
        <div class="formulize-drawer__body--ai">          (the AI assistant)
-       <div class="formulize-drawer__foot">              (Cancel/Save, paging)
+       <div class="formulize-drawer__foot">              (the screen's form buttons, paging)
      </aside>
 
    The form content inside .formulize-drawer__body is wrapped by the theme's
@@ -1156,6 +1156,10 @@ button.formulize-ai-copy-btn:active {
 	display: flex;
 	justify-content: flex-end;
 	align-items: center;
+	/* A screen can configure several buttons (printable view, save, save and leave,
+	   close) on top of the paging controls, and the drawer can be dragged down to
+	   320px, so the row has to be allowed to wrap rather than overflow. */
+	flex-wrap: wrap;
 	gap: 8px;
 	background: var(--formulize-drawer-foot-bg);
 	flex-shrink: 0;
