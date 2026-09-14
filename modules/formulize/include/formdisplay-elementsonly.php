@@ -299,8 +299,12 @@ print "<script type='text/javascript'>
 print "<form id='".htmlspecialchars($formname, ENT_QUOTES)."' data-fid='".intval($fid)."' data-frid='".intval($frid)."'>\n";
 
 if($screen) {
-	$screen->setVar('navstyle', 3); // turn off tabs and buttons
-	$screen->setVar('showpageselector', 1) ; // 2 is 'off'
+	// NB: this used to overwrite the screen's navstyle and showpageselector to suppress the
+	// navigation chrome. Both were already inert - every read of them lives inside the
+	// !$elements_only branch of displayFormPages, which is skipped below - and they hid the
+	// screen's real configuration from the paging metadata. The drawer now mirrors that
+	// configuration (tabs, previous/next) rather than suppressing it, so the screen is
+	// rendered with its settings intact.
 	// render in elements-only mode so the screen emits just the form fields. Without
 	// this the screen renders its full multi-page layout, whose pages are hidden divs
 	// driven by navigation JS that never initializes in the drawer's AJAX inject, so

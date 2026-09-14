@@ -1024,6 +1024,7 @@ button.formulize-ai-copy-btn:active {
          <div class="formulize-drawer__spacer">
          <button class="formulize-drawer__btn ... formulize-drawer__close">
        </div>
+       <nav class="formulize-drawer__tabs">              (multipage page tabs)
        <div class="formulize-drawer__body">              (the entry form)
        <div class="formulize-drawer__body--ai">          (the AI assistant)
        <div class="formulize-drawer__foot">              (the screen's form buttons, paging)
@@ -1146,6 +1147,69 @@ button.formulize-ai-copy-btn:active {
 /* Pushes the close button to the far end regardless of title length. */
 .formulize-drawer__spacer {
 	flex: 1 1 auto;
+}
+
+/* The multi-page tab strip, mirroring the full screen form's page tabs.
+
+   A single non-wrapping scrolling row, deliberately. Vertical space is the
+   drawer's scarcest resource -- the strip competes with the header, the footer
+   button tray and the form itself -- and real page titles run 120-160px each,
+   so at the 390px minimum width a wrapping strip would stack several rows deep
+   before the user saw a single field. Scrolling costs a constant ~40px instead,
+   whatever the page count. drawer.js scrolls the active tab into view after
+   each load so you can always see where you are. */
+.formulize-drawer__tabs {
+	display: flex;
+	flex-wrap: nowrap;
+	align-items: stretch;
+	gap: 4px;
+	padding: 8px var(--formulize-drawer-pad-x);
+	border-bottom: 1px solid var(--formulize-drawer-border);
+	flex-shrink: 0;
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: thin;
+	scroll-snap-type: x proximity;
+	/* fade the edges so it reads as "there is more this way" rather than as a
+	   strip that happens to end at the drawer wall */
+	-webkit-mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+	mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+}
+
+.formulize-drawer__tab {
+	flex: 0 0 auto;
+	scroll-snap-align: start;
+	/* one long page name must not be allowed to eat the whole row */
+	max-width: 55%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	padding: 6px 12px;
+	border: 1px solid transparent;
+	border-radius: var(--formulize-drawer-radius);
+	background: transparent;
+	color: var(--formulize-drawer-muted);
+	font: inherit;
+	font-size: 13px;
+	line-height: 1.4;
+	cursor: pointer;
+}
+
+.formulize-drawer__tab:hover {
+	background: var(--formulize-drawer-foot-bg);
+	color: var(--formulize-drawer-fg);
+}
+
+/* The active tab is disabled -- it is the page you are already on -- so it must
+   not inherit the greyed-out look a disabled button normally gets. */
+.formulize-drawer__tab--active,
+.formulize-drawer__tab--active:disabled {
+	background: var(--formulize-drawer-foot-bg);
+	border-color: var(--formulize-drawer-border);
+	color: var(--formulize-drawer-fg);
+	font-weight: 600;
+	cursor: default;
+	opacity: 1;
 }
 
 /* The scrolling region. It carries no padding of its own: the wrapper emitted

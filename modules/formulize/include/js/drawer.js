@@ -79,7 +79,9 @@
         confirmDelete:   'Are you sure you want to delete the checked entries?',
         confirmDuplicate:'Are you sure you want to duplicate the checked entries?',
         page:            'Page',
-        of:              'of'
+        of:              'of',
+        formPages:       'Form pages',
+        fixPageErrors:   'Please complete the required fields on this page first.'
     };
 
     var mergedStrings = null;
@@ -101,7 +103,7 @@
     // ---- DOM -------------------------------------------------------------------
 
     var drawer = null, scrim = null, titleEl = null, bodyEl = null, aiBodyEl = null,
-        footEl = null, backBtn = null, closeBtn = null, resizeHandle = null;
+        footEl = null, backBtn = null, closeBtn = null, resizeHandle = null, tabsEl = null;
 
     var ICON_BACK  = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>';
     var ICON_CLOSE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
@@ -133,6 +135,13 @@
                 '<div class="formulize-drawer__spacer"></div>' +
                 '<button type="button" class="formulize-drawer__btn formulize-drawer__btn--ghost formulize-drawer__btn--icon formulize-drawer__close" aria-label="' + escapeAttr(S().close) + '">' + ICON_CLOSE + '</button>' +
             '</div>' +
+            // The multi-page tab strip, mirroring the full screen form's tabs. It lives
+            // here rather than in a theme's screen template because it is chrome around
+            // the form, not part of it: the templates render inside __body and inside the
+            // posted <form>, so tabs emitted there would scroll away with the fields and
+            // be submitted with them. Built by renderPageTabs; hidden when the screen is
+            // not configured for tabs, or the form has only one page.
+            '<nav class="formulize-drawer__tabs" aria-label="' + escapeAttr(S().formPages) + '" hidden></nav>' +
             '<div class="formulize-drawer__body"></div>' +
             // The AI assistant gets its own body so viewing an entry doesn't destroy
             // the conversation: both panels persist, and the drawer shows one or the other.
@@ -146,6 +155,7 @@
         bodyEl       = drawer.querySelector('.formulize-drawer__body:not(.formulize-drawer__body--ai)');
         aiBodyEl     = drawer.querySelector('.formulize-drawer__body--ai');
         footEl       = drawer.querySelector('.formulize-drawer__foot');
+        tabsEl       = drawer.querySelector('.formulize-drawer__tabs');
         backBtn      = drawer.querySelector('.formulize-drawer__back');
         closeBtn     = drawer.querySelector('.formulize-drawer__close');
         resizeHandle = drawer.querySelector('.formulize-drawer__resize-handle');
@@ -242,6 +252,8 @@
         drawerMode = mode;
         if (bodyEl)   { bodyEl.hidden   = (mode === 'ai'); }
         if (aiBodyEl) { aiBodyEl.hidden = (mode !== 'ai'); }
+        if (tabsEl && mode === 'ai') { tabsEl.hidden = true; } // the AI panel has no pages
+
         applyStoredDrawerWidth(); // each mode has its own remembered width
     }
 
@@ -258,6 +270,7 @@
         titleEl.textContent = opts.title || '';
         bodyEl.innerHTML = opts.html || '';
         footEl.innerHTML = opts.footerHtml || '';
+        if (tabsEl) { tabsEl.hidden = true; } // static content has no paging metadata
         revealDrawer();
     }
 
@@ -380,6 +393,7 @@
                     if (meta.entryId && meta.entryId !== 'new') { currentFrame.params.entryId = meta.entryId; }
                 }
                 if (currentFrame) { currentFrame.page = currentEntryNav ? currentEntryNav.currentPage : 0; }
+                renderPageTabs();
                 renderEntryFooter();
                 updateBackButton();
                 bodyEl.scrollTop = 0;
@@ -484,10 +498,81 @@
     // the paging controls. Nothing here invents a button or a label; the English strings
     // remain only as a fallback for a host that publishes no metadata at all.
     //
-    // One deliberate difference from the full screen form: a genuinely multi-page form
-    // always gets its Previous/Next controls here, even on a screen whose navstyle hides
-    // them in favour of page tabs, because the drawer suppresses those tabs and the user
-    // would otherwise have no way to move between pages.
+    // Draw the multi-page tab strip, mirroring the full screen form's tabs: one tab per
+    // reachable page, in page order, the current one marked. The server decides which
+    // pages are reachable (conditions, private elements) with the same function the full
+    // screen strip uses, so the two surfaces always show the same tabs.
+    //
+    // Unlike the full screen strip there is no leading "save and leave" tab: that is not
+    // a page, and the footer already offers it as a button, so putting it here would be
+    // the same action in two places.
+    function renderPageTabs() {
+        if (!tabsEl) { return; }
+        tabsEl.innerHTML = '';
+
+        var nav = currentEntryNav;
+        if (drawerMode === 'ai' || !drawerTabsVisible(nav)) {
+            tabsEl.hidden = true;
+            return;
+        }
+        tabsEl.hidden = false;
+
+        var activeTab = null;
+        nav.pages.forEach(function (page) {
+            var isActive = (page.page === nav.currentPage);
+            var tab = document.createElement('button');
+            tab.type = 'button';
+            tab.className = 'formulize-drawer__tab' + (isActive ? ' formulize-drawer__tab--active' : '');
+            tab.textContent = page.title || ((nav.pageWord || S().page) + ' ' + page.page);
+            // the strip is a single scrolling row, so a long title is clipped in the tab
+            // but stays readable on hover and to a screen reader
+            tab.title = tab.textContent;
+            tab.setAttribute('aria-label', tab.textContent);
+            if (isActive) {
+                tab.setAttribute('aria-current', 'page');
+                tab.disabled = true;
+                activeTab = tab;
+            } else {
+                tab.addEventListener('click', function () { goToPageFromTab(page.page); });
+            }
+            tabsEl.appendChild(tab);
+        });
+
+        // Keep the page you are on visible: with more tabs than fit, the active one can
+        // otherwise sit off the end of the scrolling row after a load.
+        if (activeTab && typeof activeTab.scrollIntoView === 'function') {
+            try { activeTab.scrollIntoView({ block: 'nearest', inline: 'center' }); }
+            catch (e) { activeTab.scrollIntoView(false); }
+        }
+    }
+
+    // A tab click is a page move like any other, but it needs to say so when it is
+    // refused: a button that does nothing reads as broken, and a tab that does nothing
+    // reads worse, because the tab visibly fails to activate.
+    function goToPageFromTab(targetPage) {
+        if (!goToPage(targetPage)) { showDrawerNotice(S().fixPageErrors); }
+    }
+
+    // The Previous/Next controls follow the screen's navstyle, as they do full screen:
+    // present when it asks for buttons (0) or for tabs and buttons (2), absent when it
+    // asks for tabs alone (1) because the tab strip above now provides the navigation.
+    // The one deviation is navstyle 3, which offers no navigation at all: full screen
+    // gets away with that because page URLs and the jump-to selector remain reachable in
+    // a full page, whereas in the drawer it would strand the user on page one.
+    function drawerShowsNavButtons(nav) {
+        // keyed off whether the strip is actually drawn, not merely configured: if every
+        // page but this one is conditioned away the tabs collapse, and the buttons are
+        // then the only way left to move
+        return !!nav && (nav.showNavButtons || !drawerTabsVisible(nav));
+    }
+
+    // A screen configured for buttons only (navstyle 0) or for no navigation at all
+    // (navstyle 3) gets no tabs here, exactly as it gets none full screen. Neither does a
+    // form with only one reachable page, so a single page form is untouched.
+    function drawerTabsVisible(nav) {
+        return !!(nav && nav.showTabs && nav.totalPages > 1 && nav.pages && nav.pages.length > 1);
+    }
+
     function renderEntryFooter() {
         if (!footEl || drawerMode === 'ai') { return; } // the AI panel has its own controls
         footEl.innerHTML = '';
@@ -507,13 +592,18 @@
             footEl.appendChild(makeButton(buttons.printableView, 'ghost', openPrintableView));
         }
 
-        if (multiPage && nav.previousPage && nav.previousButtonText) {
+        var navButtons = drawerShowsNavButtons(nav);
+
+        if (multiPage && navButtons && nav.previousPage && nav.previousButtonText) {
             footEl.appendChild(makeButton('‹ ' + nav.previousButtonText, 'ghost', function () {
                 goToPage(nav.previousPage);
             }));
         }
 
-        if (multiPage) {
+        // With tabs on show the strip already says which page you are on, so the
+        // footer does not repeat it. (The non-tab case is where a combined page
+        // indicator/selector control belongs - see issue #109.)
+        if (multiPage && !drawerTabsVisible(nav)) {
             var indicator = document.createElement('span');
             indicator.className = 'formulize-drawer__page-indicator';
             indicator.textContent = (nav.pageWord || S().page) + ' ' + nav.currentPage + ' ' +
@@ -541,7 +631,7 @@
             footEl.appendChild(makeButton(buttons.save, multiPage ? 'ghost' : 'primary', saveAndStay));
         }
 
-        if (multiPage && nav.nextButtonText) {
+        if (multiPage && navButtons && nav.nextButtonText) {
             footEl.appendChild(makeButton(
                 nav.nextIsThanks ? nav.nextButtonText : nav.nextButtonText + ' ›',
                 'primary',
@@ -773,10 +863,12 @@
     // renders the target page; otherwise we just fetch the target page. A new entry
     // created on the first save is carried into later pages by the endpoint, so no id
     // tracking is needed.
+    // Returns false when the move was refused because the current page does not
+    // validate, so a caller can say so rather than looking inert.
     function goToPage(targetPage) {
-        if (typeof jQuery === 'undefined' || !currentEntryNav) { return; }
+        if (typeof jQuery === 'undefined' || !currentEntryNav) { return false; }
         var form = bodyEl ? bodyEl.querySelector('form') : null;
-        if (!form || !validateCurrentForm(form)) { return; }
+        if (!form || !validateCurrentForm(form)) { return false; }
 
         var changed = formHasChanges();
         var url = buildEntryUrl({
@@ -796,6 +888,7 @@
 
         releaseEntryLocks(); // release the current page's locks before swapping it out
         fetchIntoDrawer(url, opts);
+        return true;
     }
 
     // Finish a multi-page entry: save the final page (if changed) then close and

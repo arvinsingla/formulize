@@ -4159,6 +4159,34 @@ input#toggleRepeatData:focus-visible {
   color: var(--text-color);
 }
 
+/* The drawer's multipage tab strip. Anari's full screen pills are a raised
+   folder-tab shape that depends on sitting directly on top of the form card;
+   the drawer's strip is a scrolling row of its own, so it takes Anari's colours
+   and a simple rounded pill rather than that shape. Skin only -- core owns the
+   layout and the scrolling behaviour. */
+.formulize-drawer__tab {
+  color: var(--accent-color);
+  background: var(--c-surface-3);
+  border: 1px solid var(--light-border-color);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 200ms linear;
+}
+
+.formulize-drawer__tab:hover {
+  background: var(--accent-color);
+  border-color: var(--light-border-color);
+  color: #fff;
+}
+
+.formulize-drawer__tab--active,
+.formulize-drawer__tab--active:disabled {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: #fff;
+}
+
 /* Anari sets a 200px min-width, 30px padding and a solid blue fill on every
    `button`; the component's own rules already out-specify that, so these only
    have to restate Anari's typography and colours at drawer scale. */

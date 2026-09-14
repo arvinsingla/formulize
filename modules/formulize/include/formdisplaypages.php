@@ -397,38 +397,12 @@ function displayFormPages($formframe, $entry_id, $mainform, $pages, $conditions=
 					'showTabs' => (($screen->getVar('navstyle') == 1 OR $screen->getVar('navstyle') == 2) ? true : false)
 					);
 
-			$templatePageTitles = array();
-			unset($templateVariables['pageTitles'][0]);
-			foreach($templateVariables['pageTitles'] as $i=>$title) {
-					if(pageMeetsConditions($conditions, $i, $entry_id, $fid, $frid) AND ($userCanViewPrivateElements OR !isPageAllPrivateElements($pages[$i], $fid))) {
-							$templatePageTitles[$i] = $title;
-					}
-			}
-			$templateVariables['pageTitles'] = $templatePageTitles;
+			// the tab strip shows the reachable pages, decided by the same function the
+			// drawer's tab strip uses, so the two surfaces cannot drift apart
+			$templateVariables['pageTitles'] = formulize_visibleMultipagePages($pages, $templateVariables['pageTitles'], $conditions, $entry_id, $fid, $frid, $userCanViewPrivateElements);
 			$templateVariables['aboveBelow'] = 'above';
 
-			global $formulize_displayingSubform;
-
-			// if viewing a subform, we use the "save and go back" text.
-			if($formulize_displayingSubform) {
-					$templateVariables['saveAndLeave'] = $templateVariables['saveAndGoBackText'] ? trans($templateVariables['saveAndGoBackText']) : trans(_formulize_SAVE_AND_GOBACK);
-
-			// otherwise... Show "save and close" if there was an originally specified done destination,
-			// or the user has permission to see a list of entries,
-			// unless the screen has no leave button, and the done destination would take us back to exactly the same place
-			// (blank done destinations resolve to the applicable list screen, in determineDoneDestinationFromURL, so situations like arbitrary pages, such as edituser.php, or other cases where the current URL is not resolvable to a list screen)
-			} elseif(($originalDoneDest
-				OR ($single_result['flag'] == 0 AND $xoopsUser)
-				OR $view_globalscope
-				OR ($view_groupscope AND $single_result['flag'] != "group")
-				)
-				AND ($saveAndContinueButtonText['leaveButtonText'] !== '' OR $done_dest !== getCurrentUrl())) {
-					$templateVariables['saveAndLeave'] = $templateVariables['saveAndLeaveText'] ? trans($templateVariables['saveAndLeaveText']) : trans(_formulize_SAVE_AND_LEAVE);
-
-			// else... no where for the user to go, no text
-			} else {
-				$templateVariables['saveAndLeave'] = "";
-			}
+			$templateVariables['saveAndLeave'] = formulizeMultipageSaveAndLeaveText($saveAndContinueButtonText, $originalDoneDest, $single_result, $view_globalscope, $view_groupscope, $done_dest);
 			$printableViewButonText = $saveAndContinueButtonText['printableViewButtonText'] ? $saveAndContinueButtonText['printableViewButtonText'] : "{NOBUTTON}";
 			$buttonArray = array(0=>"{NOBUTTON}", 1=>"{NOBUTTON}", 2=>"{NOBUTTON}", 3=>$printableViewButonText);
 			$GLOBALS['formulize_displayingMultipageScreen']['templateVariables'] = $templateVariables;
@@ -447,7 +421,23 @@ function displayFormPages($formframe, $entry_id, $mainform, $pages, $conditions=
 		$navButtonText = formulizeMultipageButtonText($saveAndContinueButtonText);
 		$navPreviousButtonText = trans(formulizeMultipagePreviousButtonText($navButtonText, $currentPage));
 		$navNextButtonText = trans(formulizeMultipageNextButtonText($navButtonText, $usersCanSave, $nextIsThanks));
+		// Which navigation affordances the screen is configured to offer. navstyle is a
+		// single setting with four states: 0 buttons, 1 tabs, 2 tabs and buttons, 3 nothing
+		// at all. Full screen reads it at the top of this function to decide what the
+		// templates draw; publishing it here lets the drawer honour the same configuration
+		// instead of inventing its own navigation.
+		$navStyle = is_object($screen) ? intval($screen->getVar('navstyle')) : 0;
+		$navVisiblePages = formulize_visibleMultipagePages($pages, $pageTitles, $conditions, $entry_id, $fid, $frid, $userCanViewPrivateElements);
+		$navPages = array();
+		foreach($navVisiblePages as $navPageNumber=>$navPageTitle) {
+			$navPages[] = array('page'=>intval($navPageNumber), 'title'=>trans($navPageTitle));
+		}
 		$navMeta = array(
+			'showTabs'        => ($navStyle == 1 OR $navStyle == 2),
+			'showNavButtons'  => ($navStyle == 0 OR $navStyle == 2),
+			'pages'           => $navPages,
+			'showPageIndicator' => (bool) (is_object($screen) ? $screen->getUIOption("showpageindicator") : false),
+			'showPageSelector'  => (bool) (is_object($screen) ? $screen->getUIOption("showpageselector") : false),
 			'currentPage'  => intval($currentPage),
 			'totalPages'   => count((array) $pages),
 			'previousPage' => ($previousPage === "none" ? null : intval($previousPage)),
@@ -482,9 +472,13 @@ function displayFormPages($formframe, $entry_id, $mainform, $pages, $conditions=
 		$multipageButtonMeta = array(
 			'printableView' => isset($multipagePrintableViewButtons['printableview']) ? trans($multipagePrintableViewButtons['printableview']) : null,
 			'save'          => $multipageSaveButtonText,
-			// a multipage screen's "save and leave" is its previous/finish control, which
-			// the host already gets from the paging metadata above
-			'saveAndLeave'  => null,
+			// Full screen, a tabbed multipage screen offers "save and leave" as the leading
+			// tab of its tab strip. The drawer's strip carries pages only, so the control
+			// becomes a footer button here - resolved by the same function that names the
+			// full screen tab. When the screen is not tabbed its previous/finish control
+			// plays that role instead, and the host already has it from the paging
+			// metadata above, so there is nothing extra to offer.
+			'saveAndLeave'  => ($navStyle == 1 OR $navStyle == 2) ? (formulizeMultipageSaveAndLeaveText($saveAndContinueButtonText, $originalDoneDest, $single_result, $view_globalscope, $view_groupscope, $done_dest) ?: null) : null,
 			'done'          => $multipageCloseButtonText,
 			'printAction'   => null,
 			'printFields'   => null,
@@ -597,6 +591,41 @@ function formulizeMultipageButtonText($saveAndContinueButtonText) {
 
 // The text for the "previous" control on a multipage screen. On the first page the
 // control is the leave button instead of a page-back button.
+/**
+ * The label for a multipage screen's "save and leave" control, or "" when the user has
+ * nowhere to go. Full screen this is the leading tab of the tab strip; in the drawer it is
+ * a footer button, because the drawer deliberately gives the strip no non-page tabs. Both
+ * resolve it here so the two surfaces offer the same control under the same name.
+ *
+ * Inside a subform it becomes "save and go back", since leaving a sub entry returns to its
+ * parent. Otherwise it appears when there is an originally specified done destination, or
+ * the user can see a list of entries - unless the screen has no leave button and the done
+ * destination would land back on exactly the same place. (Blank done destinations resolve
+ * to the applicable list screen in determineDoneDestinationFromURL, which covers arbitrary
+ * pages such as edituser.php where the current URL is not resolvable to a list screen.)
+ */
+function formulizeMultipageSaveAndLeaveText($saveAndContinueButtonText, $originalDoneDest, $single_result, $view_globalscope, $view_groupscope, $done_dest) {
+	global $xoopsUser, $formulize_displayingSubform;
+	$leaveButtonText = (is_array($saveAndContinueButtonText) AND isset($saveAndContinueButtonText['leaveButtonText'])) ? $saveAndContinueButtonText['leaveButtonText'] : '';
+	$prevButtonText = (is_array($saveAndContinueButtonText) AND isset($saveAndContinueButtonText['prevButtonText'])) ? $saveAndContinueButtonText['prevButtonText'] : '';
+	// A genuine subform render carries the parent it has to go back to, as an array of
+	// originalFid/originalEntry. The elements-only endpoint also sets this flag to a bare
+	// true, but only to switch on the conditional-element Javascript, so testing for the
+	// array is what distinguishes actually being in a sub entry from that reuse.
+	if(is_array($formulize_displayingSubform)) {
+		return $prevButtonText ? trans($prevButtonText) : trans(_formulize_SAVE_AND_GOBACK);
+	}
+	if(($originalDoneDest
+		OR ($single_result['flag'] == 0 AND $xoopsUser)
+		OR $view_globalscope
+		OR ($view_groupscope AND $single_result['flag'] != "group")
+		)
+		AND ($leaveButtonText !== '' OR $done_dest !== getCurrentUrl())) {
+		return $leaveButtonText ? trans($leaveButtonText) : trans(_formulize_SAVE_AND_LEAVE);
+	}
+	return "";
+}
+
 function formulizeMultipagePreviousButtonText($buttonText, $currentPage) {
     if(!is_array($buttonText)) { return ''; }
     if($currentPage == 1) {
@@ -680,6 +709,32 @@ function pageSelectionList($currentPage, $countPages, $pageTitles, $aboveBelow, 
 	}
 	$pageSelectionList[$cacheKey] .= "</select>";
 	return $pageSelectionList[$cacheKey];
+}
+
+/**
+ * Which pages of a multipage screen the user can actually reach, and what each one is called.
+ *
+ * The full screen form's tab strip and the drawer's tab strip both have to answer that
+ * question, and they have to answer it the same way or the two surfaces disagree about what
+ * the form contains. A page is reachable when it meets its display conditions and is not made
+ * up entirely of elements this user is not allowed to see. Page 0 is not a page of the form,
+ * so it is never included.
+ *
+ * @return array page number => page title, in the compiled page order
+ */
+function formulize_visibleMultipagePages($pages, $pageTitles, $conditions, $entry_id, $fid, $frid, $userCanViewPrivateElements) {
+	$visiblePages = array();
+	unset($pageTitles[0]);
+	foreach((array) $pageTitles as $pageNumber=>$title) {
+		// an absent page compiles to no elements, which isPageAllPrivateElements reports as
+		// not-all-private, so the page is kept - the behaviour this filter has always had
+		$pageElements = isset($pages[$pageNumber]) ? $pages[$pageNumber] : array();
+		if(pageMeetsConditions($conditions, $pageNumber, $entry_id, $fid, $frid)
+			AND ($userCanViewPrivateElements OR !isPageAllPrivateElements($pageElements, $fid))) {
+			$visiblePages[$pageNumber] = $title;
+		}
+	}
+	return $visiblePages;
 }
 
 function isPageAllPrivateElements($pageElements, $fid) {
