@@ -4187,14 +4187,21 @@ input#toggleRepeatData:focus-visible {
   color: #fff;
 }
 
-/* Anari sets a 200px min-width, 30px padding and a solid blue fill on every
-   `button`; the component's own rules already out-specify that, so these only
-   have to restate Anari's typography and colours at drawer scale. */
+/* The drawer's header Back/Close icon buttons. Anari sets a 200px min-width, 30px
+   padding and a solid blue fill on every `button`; the component's own rules already
+   out-specify that, so these only have to restate Anari's typography and colours at
+   drawer scale.
+
+   The drawer FOOTER's buttons are deliberately not these any more: they are
+   `input.formulize-form-submit-button`, the same class the full screen action bar
+   uses, so Anari's own rule for that class (which paints every one of them
+   var(--button-color), full screen included) covers both surfaces and they agree on
+   colour by construction. Their geometry — against Anari's 200px min-width and 30px
+   padding on every `input[type=button]` — is reset by core's
+   `.formulize-drawer .formulize-drawer__foot .formulize-form-submit-button`, so
+   nothing further is needed here. */
 .formulize-drawer .formulize-drawer__btn {
   height: 38px;
-  /* 20px a side was too generous for the footer tray, which is a single row that
-     never wraps and has to seat the screen's whole set of form buttons; at the
-     drawer's default width that pushed every label into an ellipsis. */
   padding: 0 12px;
   font-size: 0.9rem;
   font-weight: 600;
@@ -4207,13 +4214,6 @@ input#toggleRepeatData:focus-visible {
 .formulize-drawer .formulize-drawer__btn:hover {
   background: var(--c-surface);
   box-shadow: var(--sh-accent-glow);
-}
-
-.formulize-drawer .formulize-drawer__btn--primary,
-.formulize-drawer .formulize-drawer__btn--primary:hover {
-  background: var(--button-color);
-  border-color: var(--button-color);
-  color: #FFF;
 }
 
 .formulize-drawer .formulize-drawer__btn--ghost {

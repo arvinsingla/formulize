@@ -591,27 +591,11 @@
         // pair the drawer offered before the screen's configuration reached it.
         var buttons = currentEntryButtons || { save: S().save, done: S().cancel };
 
-        // Every control in the tray is a primary button. Full screen, all of these render
-        // as the theme's ordinary form buttons, with equal weight and no hierarchy between
-        // them -- so picking one out here as "the" action, and greying the rest down to
-        // ghosts, was the drawer inventing an emphasis the screen never asked for (and it
-        // read as three disabled buttons next to one live one). Same weight for all of
-        // them, matching full screen.
-        if (buttons.printableView && buttons.printAction) {
-            footEl.appendChild(makeButton(buttons.printableView, 'primary', openPrintableView));
-        }
-
-        var navButtons = drawerShowsNavButtons(nav);
-
-        if (multiPage && navButtons && nav.previousPage && nav.previousButtonText) {
-            footEl.appendChild(makeButton('‹ ' + nav.previousButtonText, 'primary', function () {
-                goToPage(nav.previousPage);
-            }));
-        }
-
-        // With tabs on show the strip already says which page you are on, so the
-        // footer does not repeat it. (The non-tab case is where a combined page
-        // indicator/selector control belongs - see issue #109.)
+        // Page meta leads, as it does in the full screen bar (the Lyris bottomtemplate
+        // emits $pageIndicator/$pageSelector before any button). With tabs on show the
+        // strip already says which page you are on, so the footer does not repeat it.
+        // (The non-tab case is where a combined page indicator/selector control belongs
+        // - see issue #109.)
         if (multiPage && !drawerTabsVisible(nav)) {
             var indicator = document.createElement('span');
             indicator.className = 'formulize-drawer__page-indicator';
@@ -620,30 +604,62 @@
             footEl.appendChild(indicator);
         }
 
-        // The done/close button leaves without saving. Inside a sub entry that means
-        // returning to the parent, which is what the same button does full screen. A
-        // screen with no close button still gets the Back control, so there is always a
-        // way out of a sub entry.
-        if (buttons.done) {
-            footEl.appendChild(makeButton(buttons.done, 'primary', inSub ? goBack : closeEntryDrawer));
-        } else if (inSub) {
-            footEl.appendChild(makeButton('‹ ' + S().back, 'primary', goBack));
+        // The tray is laid out in the full screen action bar's order. The multiPage
+        // bottomtemplate emits `$pageIndicator $pageSelector $previousPageButton
+        // $savePageButton $closePageButton $nextPageButton`, so: page meta, then
+        // previous, save, close, next. Following that here is what makes the two
+        // surfaces read the same, rather than the drawer's old close/save-and-close/
+        // save/next ordering. The printable view button has no slot in that bar (full
+        // screen puts it in its own #formulize-button-controls tray), so it leads.
+        if (buttons.printableView && buttons.printAction) {
+            footEl.appendChild(makeButton(buttons.printableView, 'printbutton', openPrintableView));
         }
 
+        var navButtons = drawerShowsNavButtons(nav);
+
+        // No '‹'/'›' chevrons on the labels: full screen renders the screen's configured
+        // button text verbatim, and the drawer must not decorate what the screen said.
+        if (multiPage && navButtons && nav.previousPage && nav.previousButtonText) {
+            footEl.appendChild(makeButton(nav.previousButtonText, 'prev', function () {
+                goToPage(nav.previousPage);
+            }));
+        }
+
+        // Save and leave takes the full screen bar's "previous" slot, because that is
+        // literally where full screen puts it: formulizeMultipagePreviousButtonText()
+        // returns the screen's leaveButtonText on page one, so the control rendered as
+        // name="prev" there reads "Save and Close". Same slot, same name, same styling.
+        //
+        // Past page one full screen gives that slot over to the real previous-page
+        // control and drops save-and-leave entirely, whereas the drawer offers both (it
+        // reads them from two different pieces of metadata). That is a button-set
+        // difference, not a styling one, so it is left as it is here -- two prev-slot
+        // controls, both secondary, sitting together in the bar's prev position.
         if (buttons.saveAndLeave) {
-            footEl.appendChild(makeButton(buttons.saveAndLeave, 'primary', saveEntryFromDrawer));
+            footEl.appendChild(makeButton(buttons.saveAndLeave, 'prev', saveEntryFromDrawer));
         }
 
         // Save means save, as it does full screen: the entry is written and stays open for
-        // more editing.
+        // more editing. This is the one accent/primary control in the bar, because it is
+        // the one full screen paints that way (Lyris keys off name^="save").
         if (buttons.save) {
-            footEl.appendChild(makeButton(buttons.save, 'primary', saveAndStay));
+            footEl.appendChild(makeButton(buttons.save, 'save', saveAndStay));
+        }
+
+        // The done/close button leaves without saving. Inside a sub entry that means
+        // returning to the parent, which is what the same button does full screen. A
+        // screen with no close button still gets the Back control, so there is always a
+        // way out of a sub entry. Both are the bar's name="close" slot.
+        if (buttons.done) {
+            footEl.appendChild(makeButton(buttons.done, 'close', inSub ? goBack : closeEntryDrawer));
+        } else if (inSub) {
+            footEl.appendChild(makeButton(S().back, 'close', goBack));
         }
 
         if (multiPage && navButtons && nav.nextButtonText) {
             footEl.appendChild(makeButton(
-                nav.nextIsThanks ? nav.nextButtonText : nav.nextButtonText + ' ›',
-                'primary',
+                nav.nextButtonText,
+                'next',
                 nav.nextIsThanks ? finishDrawer : function () { goToPage(nav.nextPage); }
             ));
         }
@@ -674,18 +690,28 @@
         document.body.removeChild(form);
     }
 
-    function makeButton(label, variant, onClick) {
-        var btn = document.createElement('button');
+    // A footer control, built as the very same thing the full screen form builds: an
+    // `<input type="button" class="formulize-form-submit-button">` carrying the name of
+    // the action bar slot it fills (`prev`, `save`, `close`, `next`, plus `printbutton`
+    // for the printable view). Everything visual then comes from the rules the themes
+    // already apply to the full screen bar -- including the role colours, which are keyed
+    // off the name (Lyris paints `[name^="save"]` accent and leaves the rest bordered
+    // secondary; Anari gives them all its one button colour). That is the point: the
+    // drawer no longer has a button scheme of its own to get out of step. The previous
+    // `formulize-drawer__btn--primary/--ghost` variants were a drawer-only invention with
+    // no counterpart full screen, and painting them all `--primary` (the earlier response
+    // to this review) only made the mismatch uniform.
+    //
+    // Deliberately no `id`: full screen's #prev/#next ids carry core's arrow-image
+    // treatment, and the drawer opens on top of a page that may already own those ids.
+    function makeButton(label, name, onClick) {
+        var btn = document.createElement('input');
         btn.type = 'button';
-        btn.className = 'formulize-drawer__btn formulize-drawer__btn--' + variant;
-        // The footer tray is a single row that never wraps, so a narrow drawer
-        // compresses the buttons instead. The label gets its own element because
-        // text-overflow has nothing to act on inside an inline-flex button, and the
-        // full text stays available as the tooltip.
-        var labelEl = document.createElement('span');
-        labelEl.className = 'formulize-drawer__btn-label';
-        labelEl.textContent = label;
-        btn.appendChild(labelEl);
+        btn.className = 'formulize-form-submit-button';
+        btn.name = name;
+        btn.value = label;
+        // A very long configured label still ellipsises at the drawer's narrowest, so
+        // keep the whole text reachable as a tooltip.
         btn.title = label;
         btn.addEventListener('click', onClick);
         return btn;

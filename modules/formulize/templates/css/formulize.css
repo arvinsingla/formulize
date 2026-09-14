@@ -1345,24 +1345,25 @@ button.formulize-ai-copy-btn:active {
 	text-align: center;
 }
 
+/* The footer tray is the full screen form's action bar (#multipage-controls) at a
+   mobile viewport, and is deliberately built from the same parts: same flex row,
+   same wrap, same 16px padding and 8px gap, and buttons that are literally the same
+   `input.formulize-form-submit-button` elements (see makeButton in drawer.js).
+   The drawer is a mobile-width surface at every window size -- 390px minimum, and
+   only ever a fraction of the window -- so it takes that mobile layout
+   unconditionally rather than behind a media query.
+
+   This replaces a single non-wrapping row of drawer-only buttons, which squeezed
+   four controls into a 390px strip at 32px tall while full screen was giving the
+   same four 44px tap targets two to a row. */
 .formulize-drawer__foot {
-	/* A tighter side gutter than the rest of the drawer (--formulize-drawer-pad-x,
-	   20px): the tray is the one row that has to fit several buttons across a narrow
-	   drawer, and those ~12px buy the last button its full label at the common
-	   default width. */
-	padding: 12px 14px;
+	padding: 16px;
 	border-top: 1px solid var(--formulize-drawer-border);
 	display: flex;
 	justify-content: flex-end;
 	align-items: center;
-	/* One horizontal row, always. A screen can configure several buttons (printable
-	   view, save, save and leave, close) on top of the paging controls, and the
-	   drawer can be dragged down to its 390px minimum -- this used to wrap, which
-	   split the tray across two rows even at the default width. Instead the row never
-	   wraps and the buttons are allowed to compress (see the --btn rules below), so
-	   they always sit together and only give up label width when they truly have to. */
-	flex-wrap: nowrap;
-	gap: 6px;
+	flex-wrap: wrap;
+	gap: 8px;
 	background: var(--formulize-drawer-foot-bg);
 	flex-shrink: 0;
 }
@@ -1371,45 +1372,76 @@ button.formulize-ai-copy-btn:active {
 	display: none;
 }
 
-/* Pushed hard left, and the first thing to give up room: the tray does not wrap,
-   so the notice must not be able to force the buttons off the end. */
-.formulize-drawer__notice {
-	margin-right: auto;
-	align-self: center;
-	flex: 0 1 auto;
+/* Page meta and transient notices each take a line of their own, below the buttons,
+   the way the full screen bar puts #page-indicator / #page-selector on their own
+   centered lines at a mobile width (the `order: 90` there, mirrored here). They are
+   meta, so they must never compete with the buttons for room in a button row. The
+   notice collapses when empty so it costs no row and no gap. */
+.formulize-drawer__notice,
+.formulize-drawer__page-indicator {
+	flex: 1 1 100%;
+	order: 90;
 	min-width: 0;
+	margin: 0;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+	text-align: center;
 	font-size: 13px;
 	color: var(--formulize-drawer-muted);
+}
+
+.formulize-drawer__notice:empty {
+	display: none;
 }
 
 .formulize-drawer__page-indicator {
-	align-self: center;
-	margin: 0 4px;
-	font-size: 13px;
-	color: var(--formulize-drawer-muted);
 	font-feature-settings: "tnum";
-	white-space: nowrap;
 }
 
-/* Drawer's own buttons. Deliberately self-contained rather than reusing a
-   theme's button class, so the component is complete on its own; a theme
-   re-skins these classes (see themes/Lyris/css/style.css for an example that
-   maps them onto the theme's own button primitive). Scoped under
-   .formulize-drawer so they outrank the bare `button` / `button:hover` rules
-   several themes set, while still being easy for a theme to override with a
-   selector of the same shape. The min-width / width / background resets are
-   spelled out because those theme rules often set a wide default. */
+/* The footer's form buttons. These carry `.formulize-form-submit-button` -- the class
+   the full screen action bar uses -- so a theme skins both surfaces with one set of
+   rules and the drawer inherits full screen's role colours (keyed off the button's
+   name) for free. What is left here is the layout half of what Lyris's mobile
+   #multipage-controls rule does: two buttons to a row, 44px tap targets. The
+   min-width / width / height / text-indent resets are spelled out because
+   `.formulize-form-submit-button` further up this file sizes the full page bar's
+   buttons at a fixed 185px x 36px. */
+.formulize-drawer .formulize-drawer__foot .formulize-form-submit-button {
+	flex: 1 1 calc(50% - 8px);
+	min-width: 0;
+	width: auto;
+	height: 44px;
+	padding: 0 10px;
+	font: inherit;
+	font-size: 14px;
+	font-weight: 500;
+	line-height: 1;
+	text-indent: 0;
+	text-align: center;
+	text-shadow: none;
+	background-image: none;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	border-radius: var(--formulize-drawer-radius);
+	cursor: pointer;
+}
+
+/* The drawer's own chrome buttons: the header's Back and Close icons. (The footer's
+   form buttons are the shared `.formulize-form-submit-button` above.) Deliberately
+   self-contained rather than reusing a theme's button class, so the component is
+   complete on its own; a theme re-skins these classes (see themes/Lyris/css/style.css
+   for an example that maps them onto the theme's own button primitive). Scoped under
+   .formulize-drawer so they outrank the bare `button` / `button:hover` rules several
+   themes set, while still being easy for a theme to override with a selector of the
+   same shape. The min-width / width / background resets are spelled out because those
+   theme rules often set a wide default. */
 .formulize-drawer .formulize-drawer__btn {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	gap: 6px;
-	/* Allowed to shrink so the footer tray stays on one row at narrow drawer widths:
-	   the label ellipsises (the button carries a title attribute with the full text)
-	   rather than the tray wrapping. */
 	flex: 0 1 auto;
 	min-width: 0;
 	width: auto;
@@ -1429,30 +1461,8 @@ button.formulize-ai-copy-btn:active {
 	text-transform: none;
 }
 
-/* The label element makeButton puts inside every footer button. text-overflow has
-   nothing to act on in the inline-flex button itself, so the truncation happens
-   here; the button's title attribute carries the untruncated text. */
-.formulize-drawer .formulize-drawer__btn-label {
-	min-width: 0;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-}
-
 .formulize-drawer .formulize-drawer__btn:hover {
 	background: var(--formulize-drawer-foot-bg);
-}
-
-.formulize-drawer .formulize-drawer__btn--primary {
-	background: #2f6fb3;
-	border-color: #2f6fb3;
-	color: #ffffff;
-}
-
-.formulize-drawer .formulize-drawer__btn--primary:hover {
-	background: #27598f;
-	border-color: #27598f;
-	color: #ffffff;
 }
 
 .formulize-drawer .formulize-drawer__btn--ghost {
