@@ -2385,8 +2385,14 @@ input::-ms-thumb {
   }
 }
 
+/* Restates the body font on the elements that browsers give a font of their
+   own (form controls, tables) and on the jQuery UI widgets that ship their
+   own family. Goes through --font-sans rather than naming Poppins, so the
+   Appearance page's font setting reaches these elements too: they cover
+   nearly all the text on a page, so a hardcoded family here would override
+   the chosen font everywhere it matters. */
 div, span, textarea, select, p, input, th, td, .ui-widget div, .ui-widget span, .ui-widget textarea, .ui-widget select, .ui-widget p, .ui-widget input, .ui-widget th, .ui-widget td {
-  font-family: Poppins, Helvetica, Verdana, sans-serif;
+  font-family: var(--font-sans);
 }
 
 img, svg {
