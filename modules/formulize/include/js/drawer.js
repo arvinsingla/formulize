@@ -524,8 +524,9 @@
             tab.type = 'button';
             tab.className = 'formulize-drawer__tab' + (isActive ? ' formulize-drawer__tab--active' : '');
             tab.textContent = page.title || ((nav.pageWord || S().page) + ' ' + page.page);
-            // the strip is a single scrolling row, so a long title is clipped in the tab
-            // but stays readable on hover and to a screen reader
+            // the wrapped strip shows every title in full, so this is belt and braces --
+            // it still gives the tab a tooltip and a stable accessible name, and keeps
+            // long titles readable if the scrolling (clipping) variant is switched back on
             tab.title = tab.textContent;
             tab.setAttribute('aria-label', tab.textContent);
             if (isActive) {
@@ -538,8 +539,10 @@
             tabsEl.appendChild(tab);
         });
 
-        // Keep the page you are on visible: with more tabs than fit, the active one can
-        // otherwise sit off the end of the scrolling row after a load.
+        // Keep the page you are on visible. The strip wraps now, so every tab is on
+        // screen and this is a no-op against a container that does not scroll -- it is
+        // left in place, and deliberately harmless, so re-enabling the scrolling variant
+        // (see .formulize-drawer__tabs--scroll in formulize.css) needs no JS change.
         if (activeTab && typeof activeTab.scrollIntoView === 'function') {
             try { activeTab.scrollIntoView({ block: 'nearest', inline: 'center' }); }
             catch (e) { activeTab.scrollIntoView(false); }
@@ -588,14 +591,20 @@
         // pair the drawer offered before the screen's configuration reached it.
         var buttons = currentEntryButtons || { save: S().save, done: S().cancel };
 
+        // Every control in the tray is a primary button. Full screen, all of these render
+        // as the theme's ordinary form buttons, with equal weight and no hierarchy between
+        // them -- so picking one out here as "the" action, and greying the rest down to
+        // ghosts, was the drawer inventing an emphasis the screen never asked for (and it
+        // read as three disabled buttons next to one live one). Same weight for all of
+        // them, matching full screen.
         if (buttons.printableView && buttons.printAction) {
-            footEl.appendChild(makeButton(buttons.printableView, 'ghost', openPrintableView));
+            footEl.appendChild(makeButton(buttons.printableView, 'primary', openPrintableView));
         }
 
         var navButtons = drawerShowsNavButtons(nav);
 
         if (multiPage && navButtons && nav.previousPage && nav.previousButtonText) {
-            footEl.appendChild(makeButton('‹ ' + nav.previousButtonText, 'ghost', function () {
+            footEl.appendChild(makeButton('‹ ' + nav.previousButtonText, 'primary', function () {
                 goToPage(nav.previousPage);
             }));
         }
@@ -616,19 +625,19 @@
         // screen with no close button still gets the Back control, so there is always a
         // way out of a sub entry.
         if (buttons.done) {
-            footEl.appendChild(makeButton(buttons.done, 'ghost', inSub ? goBack : closeEntryDrawer));
+            footEl.appendChild(makeButton(buttons.done, 'primary', inSub ? goBack : closeEntryDrawer));
         } else if (inSub) {
-            footEl.appendChild(makeButton('‹ ' + S().back, 'ghost', goBack));
+            footEl.appendChild(makeButton('‹ ' + S().back, 'primary', goBack));
         }
 
         if (buttons.saveAndLeave) {
-            footEl.appendChild(makeButton(buttons.saveAndLeave, 'ghost', saveEntryFromDrawer));
+            footEl.appendChild(makeButton(buttons.saveAndLeave, 'primary', saveEntryFromDrawer));
         }
 
         // Save means save, as it does full screen: the entry is written and stays open for
-        // more editing. On a multi-page form the Next/Finish control is the primary one.
+        // more editing.
         if (buttons.save) {
-            footEl.appendChild(makeButton(buttons.save, multiPage ? 'ghost' : 'primary', saveAndStay));
+            footEl.appendChild(makeButton(buttons.save, 'primary', saveAndStay));
         }
 
         if (multiPage && navButtons && nav.nextButtonText) {
@@ -669,7 +678,15 @@
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'formulize-drawer__btn formulize-drawer__btn--' + variant;
-        btn.textContent = label;
+        // The footer tray is a single row that never wraps, so a narrow drawer
+        // compresses the buttons instead. The label gets its own element because
+        // text-overflow has nothing to act on inside an inline-flex button, and the
+        // full text stays available as the tooltip.
+        var labelEl = document.createElement('span');
+        labelEl.className = 'formulize-drawer__btn-label';
+        labelEl.textContent = label;
+        btn.appendChild(labelEl);
+        btn.title = label;
         btn.addEventListener('click', onClick);
         return btn;
     }
@@ -712,20 +729,24 @@
     // Run the current page's validation function and flush any CKEditors. Returns
     // false when validation fails (so the caller should stay on the page).
     //
-    // Formulize gates its generated field validation behind `formulizechanged`, so a
-    // page that has not been touched skips all its required-field checks. For
-    // navigation we want required fields enforced regardless, so we force the flag
-    // true around the validation call only — the real change state is restored
-    // afterwards so the save decision is unaffected (an untouched page is still
-    // treated as "no changes" and not re-saved).
+    // Formulize gates every generated field check behind `formulizechanged`: each
+    // element's validation body is emitted wrapped in `if(formulizechanged) { ... }`
+    // (see _drawValidationJS in formdisplay.php), so an untouched page passes
+    // validation outright, required fields included. Full screen inherits that gate
+    // as-is -- a page hop (multipage_boilerplate.php's submitForm) and a save
+    // (validateAndSubmit) both call the very same xoopsFormValidate_formulize_mainform
+    // with whatever formulizechanged currently is, and neither overrides it. So full
+    // screen lets you leave an untouched page with empty required fields, and stops
+    // you only once you have actually edited something.
+    //
+    // This must not second-guess that. An earlier version forced the flag to 1 around
+    // the call so navigation would always enforce required fields, which made the
+    // drawer refuse tab hops that full screen allows (issue reported on PR #127).
+    // Honouring the real flag is what keeps the two surfaces identical.
     function validateCurrentForm(form) {
         var validateFn = window['xoopsFormValidate_' + form.id];
         var ok = true;
-        if (typeof validateFn === 'function') {
-            var savedChanged = window.formulizechanged;
-            window.formulizechanged = 1;
-            try { ok = !!validateFn(form); } finally { window.formulizechanged = savedChanged; }
-        }
+        if (typeof validateFn === 'function') { ok = !!validateFn(form); }
         if (ok && typeof updateCKEditors === 'function') { updateCKEditors(); }
         return ok;
     }

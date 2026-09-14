@@ -332,8 +332,8 @@ body:not(#formulize):not(.formulize-screen) .fz-main {
 
 /* The drawer's multipage tab strip, given the same pill treatment as the full
    screen strip (`.pill-tabs__item` further down this file) so a multipage form
-   looks like itself in both places. Skin only -- the layout, the single
-   non-wrapping scrolling row and the edge fade all come from core. */
+   looks like itself in both places. Skin only -- the layout, and the wrapping of
+   the row, come from core. */
 .formulize-drawer__tab {
   font-size: var(--fs-13);
   font-weight: 500;
@@ -381,9 +381,14 @@ body:not(#formulize):not(.formulize-screen) .fz-main {
   padding: var(--s-6);
 }
 
+/* A tighter side gutter and gap than the rest of the drawer. The tray is a single
+   row that never wraps (core sets flex-wrap:nowrap), and it has to seat the
+   screen's full set of form buttons -- close, save and close, save, save and
+   continue is four across -- at the drawer's default width. These few px are what
+   let all four keep their whole label instead of ellipsising. */
 .formulize-drawer__foot {
-  padding: var(--s-3) var(--s-5);
-  gap: var(--s-2);
+  padding: var(--s-3);
+  gap: var(--s-1);
 }
 
 .formulize-drawer__notice,
