@@ -487,13 +487,13 @@ function formulize_gatherCompositeDataSet($settings, $searches, $sort, $order, $
 	$filter = formulize_parseSearchesIntoFilter($searches);
 	$filterToCompare = is_array($filter) ? serialize($filter) : $filter;
 
+	$formulize_LOEPageSize = formulize_effectiveEntriesPerPage($screen);
+
 	$regeneratePageNumbers = false;
-	if (!isset($_POST['lastentry']) AND ((isset($_POST['formulize_previous_filter']) AND $filterToCompare != $_POST['formulize_previous_filter']) OR (isset($_POST['formulize_previous_scope']) AND $flatScope != $_POST['formulize_previous_scope']))) {
+	if (!isset($_POST['lastentry']) AND ((isset($_POST['formulize_previous_filter']) AND $filterToCompare != $_POST['formulize_previous_filter']) OR (isset($_POST['formulize_previous_scope']) AND $flatScope != $_POST['formulize_previous_scope']) OR formulize_entriesPerPageChanged($formulize_LOEPageSize))) {
 		$regeneratePageNumbers = true;
 	}
 
-	$formulize_LOEPageSize = is_object($screen) ? $screen->getVar('entriesperpage') : 10;
-	$formulize_LOEPageSize = (isset($_POST['formulize_entriesPerPage']) AND $_POST['formulize_entriesPerPage'] !== "") ? intval($_POST['formulize_entriesPerPage']) : $formulize_LOEPageSize;
 	if ($formulize_LOEPageSize) {
 		$limitStart = (isset($_POST['formulize_LOEPageStart']) AND !$regeneratePageNumbers) ? intval($_POST['formulize_LOEPageStart']) : 0;
 		$limitSize = $formulize_LOEPageSize;
