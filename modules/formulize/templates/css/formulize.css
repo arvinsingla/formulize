@@ -1350,7 +1350,15 @@ button.formulize-ai-copy-btn:active {
    after dropping #formulizeform to 0.5 opacity; this does the same to the drawer's
    form, and freezes the tabs and the footer buttons the way full screen disables
    .formulize-form-submit-button for the duration. Built by drawer.js (search for
-   showDrawerSaving); the <img> inside it is the very same saving-<language>.gif. */
+   showDrawerSaving); the <img> inside it is the very same saving-<language>.gif.
+
+   This is geometry plus the default-Formulize gif, nothing more, exactly as the core
+   rules for #savingmessage are. A theme that replaces the saving animation restyles
+   this class alongside #savingmessage / #workingmessage in its own stylesheet, which
+   loads after this one -- Lyris does, hiding the gif and drawing its spinner (see
+   "Loading overlay" in themes/Lyris/css/style.css). Themes that do not, like Anari,
+   get what is here. Keep the img and the box separable so a theme can swap the
+   animation without having to restate the drawer-scoped positioning. */
 .formulize-drawer__saving {
 	position: absolute;
 	inset: 0;
