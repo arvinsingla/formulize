@@ -784,6 +784,58 @@ div[id^=cellcontents_1_] label {
 	padding-left: 2em;
 }
 
+/* ---------- Inline ("dynamic") editing of fields in list views - issue #134 ----------
+   A list view cell that can be edited in place renders as
+   .formulize-de-container. While the field is being edited the container also
+   carries .formulize-de-editing (added/removed by renderElementHtml() and its
+   companions in entriesdisplay.php) and holds the element's own markup followed
+   by a .formulize-de-controls wrapper with the save/cancel anchors.
+
+   These are base layout rules only: they keep the field and both controls on a
+   single, vertically-centred line and space the icons with a real gap instead of
+   the &nbsp; runs and <br /> the old markup used. Cosmetics (icon artwork,
+   colours, sizing) are deliberately left alone so each theme can restyle
+   .formulize-de-save / .formulize-de-cancel however it likes. */
+
+.formulize-de-editing {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35em;
+}
+
+/* Let the edit field take the slack rather than its intrinsic width. Core
+   emits size="30" on text inputs, whose ~30ch preferred width would otherwise
+   widen the column and reflow an auto-layout table the moment editing starts. */
+.formulize-de-editing > input,
+.formulize-de-editing > select,
+.formulize-de-editing > textarea {
+  flex: 1 1 0;
+  min-width: 0;
+  width: 0;
+  max-width: 100%;
+}
+
+.formulize-de-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  flex: 0 0 auto;
+}
+
+.formulize-de-controls > a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.formulize-de-controls > a > img {
+  display: block;
+  border: 0;
+}
+
 .formulize-uploaded-image-thumbnail {
   max-width: 200px;
   display: inline;
