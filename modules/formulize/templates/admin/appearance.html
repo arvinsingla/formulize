@@ -1,10 +1,5 @@
 <div class="panel-content content">
 
-    <h2>Appearance</h2>
-    <blockquote>
-    <p>Customize the colours, font, and logo of the end-user interface. Each theme has its own settings, so pick the theme you want to change below. Variations of each colour (hover states, soft backgrounds, muted text) are derived automatically, so the interface always stays coherent.</p>
-    </blockquote>
-
     <p>
         <label for="appearance_theme_select"><b>Theme:</b></label>
         <select id="appearance_theme_select" size="1">
@@ -36,21 +31,21 @@
     <{* keeps a save on the theme that is being edited, whichever one that is *}>
     <input type="hidden" name="appearance_theme" value="<{$adminPage.selected_theme}>" />
 
-    <h3>Colours</h3>
-    <table style="max-width: 700px;">
-    <{foreach from=$adminPage.colours item=colour}>
-        <tr>
-            <td style="padding: 6px 12px 6px 0; white-space: nowrap; vertical-align: top;">
+    <fieldset class="appearance-colours" style="max-width: 700px;">
+        <legend>Colours</legend>
+        <{foreach from=$adminPage.colours item=colour}>
+        <div class="appearance-colour" style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; padding: 6px 0;">
+            <div style="flex: 0 0 300px; max-width: 100%;">
                 <label for="appearance_<{$colour.key}>"><b><{$colour.label}></b></label><br/>
                 <span style="font-size: smaller;"><{$colour.description}></span>
-            </td>
-            <td style="padding: 6px 0; vertical-align: top; white-space: nowrap;">
+            </div>
+            <div style="flex: 1 1 auto; white-space: nowrap;">
                 <input type="color" id="appearance_<{$colour.key}>" name="appearance_<{$colour.key}>" value="<{$colour.value}>" data-default="<{$colour.default}>" oninput="appearanceSyncResetLinks();" />
                 <a href="#" class="appearance-reset" style="font-size: smaller;" onclick="document.getElementById('appearance_<{$colour.key}>').value = '<{$colour.default}>'; appearanceSyncResetLinks(); return false;">Reset to default (<{$colour.default}>)</a>
-            </td>
-        </tr>
-    <{/foreach}>
-    </table>
+            </div>
+        </div>
+        <{/foreach}>
+    </fieldset>
 
     <br/><hr/><br/>
 
