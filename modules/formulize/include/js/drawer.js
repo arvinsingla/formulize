@@ -96,6 +96,13 @@
     // declared on .formulize-drawer in the base stylesheet.
     var MIN_WIDTH        = 390;
     var MOBILE_BREAKPOINT = 768;
+    // Width of the DRAWER (not the window) at which its footer stops being the full
+    // screen form's mobile action bar and becomes the full screen form's ordinary one:
+    // content-width buttons on a single row instead of two 44px tap targets to a row.
+    // Keyed off the drawer because the drawer is drag-resizable, so the window's width
+    // says nothing about how much room the footer actually has. Same 768 the mobile
+    // layout everywhere else in Formulize turns on at.
+    var WIDE_BREAKPOINT  = 768;
     var AI_DEFAULT_WIDTH = '640px'; // chat needs more room than the entry-form default
     var WIDTH_STORAGE_KEY    = 'fz-drawer-width';
     var AI_WIDTH_STORAGE_KEY = 'fz-drawer-width-ai';
@@ -103,7 +110,8 @@
     // ---- DOM -------------------------------------------------------------------
 
     var drawer = null, scrim = null, titleEl = null, bodyEl = null, aiBodyEl = null,
-        footEl = null, backBtn = null, closeBtn = null, resizeHandle = null, tabsEl = null;
+        footEl = null, backBtn = null, closeBtn = null, resizeHandle = null, tabsEl = null,
+        savingEl = null;
 
     var ICON_BACK  = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>';
     var ICON_CLOSE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
@@ -146,7 +154,12 @@
             // The AI assistant gets its own body so viewing an entry doesn't destroy
             // the conversation: both panels persist, and the drawer shows one or the other.
             '<div class="formulize-drawer__body formulize-drawer__body--ai" hidden></div>' +
-            '<div class="formulize-drawer__foot"></div>';
+            '<div class="formulize-drawer__foot"></div>' +
+            // Formulize's saving animation, shown over the dimmed form while one of the
+            // drawer's saves is in flight. Full screen this is #savingmessage, revealed by
+            // showSavingGraphic() (drawJavascript in formdisplay.php); the drawer saves
+            // over XHR and so needs its own copy of the same asset in its own chrome.
+            '<div class="formulize-drawer__saving" aria-hidden="true" hidden></div>';
 
         document.body.appendChild(scrim);
         document.body.appendChild(drawer);
@@ -159,6 +172,7 @@
         backBtn      = drawer.querySelector('.formulize-drawer__back');
         closeBtn     = drawer.querySelector('.formulize-drawer__close');
         resizeHandle = drawer.querySelector('.formulize-drawer__resize-handle');
+        savingEl     = drawer.querySelector('.formulize-drawer__saving');
 
         closeBtn.addEventListener('click', closeCurrentDrawer);
         backBtn.addEventListener('click', handleBack);
@@ -206,6 +220,19 @@
         } else {
             drawer.style.width = ''; // fall back to the stylesheet's default
         }
+        syncDrawerWidthClass();
+    }
+
+    // Flag the drawer as "wide" once it is at least as wide as the mobile breakpoint, so
+    // the stylesheet can give its footer the full screen form's ordinary button treatment
+    // instead of the mobile action bar's (PR #127 review). Measured rather than read off
+    // the inline style, because the width can come from the stylesheet's 30vw default, a
+    // remembered px value, or a drag in progress. A hidden element measures 0, so this is
+    // re-run on reveal.
+    function syncDrawerWidthClass() {
+        if (!drawer) { return; }
+        var wide = !drawer.hidden && drawer.getBoundingClientRect().width >= WIDE_BREAKPOINT;
+        drawer.classList.toggle('formulize-drawer--wide', wide);
     }
 
     // Drag-resize via the visible handle on the drawer's left edge. (Native CSS
@@ -219,6 +246,7 @@
             var delta = startX - e.clientX; // dragging toward screen center widens the drawer
             var width = Math.min(Math.max(startWidth + delta, MIN_WIDTH), maxDrawerWidth());
             drawer.style.width = width + 'px';
+            syncDrawerWidthClass(); // the footer's button treatment follows the drag live
         }
 
         function onUp() {
@@ -261,6 +289,7 @@
         drawer.hidden = false;
         scrim.hidden = false;
         document.documentElement.style.overflow = 'hidden';
+        syncDrawerWidthClass(); // only measurable now that it is displayed
     }
 
     function openDrawer(opts) {
@@ -283,6 +312,7 @@
 
     function closeDrawer() {
         if (!drawer) { return; }
+        hideDrawerSaving();
         drawer.hidden = true;
         scrim.hidden = true;
         document.documentElement.style.overflow = '';
@@ -353,12 +383,66 @@
         return moduleBase + ENDPOINT + '?' + params.join('&');
     }
 
+    // ---- Saving animation ------------------------------------------------------
+
+    // Formulize's saving animation, the same one full screen shows: showSavingGraphic()
+    // dims #formulizeform and reveals #savingmessage, which holds
+    // images/saving-<language>.gif. The drawer saves over XHR rather than by submitting
+    // the page, so it never had that markup and its saves were silent (PR #127 review).
+    // The <img> is created on first use so a drawer session that never saves never
+    // fetches the asset; footer.php publishes the URL through
+    // window.formulize.savingGraphicUrl (resolved by formulize_savingGraphicUrl(), the
+    // same function drawJavascript uses), with the english file as the fallback for a
+    // host that publishes nothing.
+    function showDrawerSaving() {
+        if (!savingEl) { return; }
+        if (!savingEl.firstChild) {
+            var img = document.createElement('img');
+            img.src = (window.formulize && window.formulize.savingGraphicUrl) ||
+                      (moduleBase + '/modules/formulize/images/saving-english.gif');
+            img.alt = '';
+            savingEl.appendChild(img);
+        }
+        savingEl.hidden = false;
+        drawer.classList.add('formulize-drawer--saving');
+    }
+
+    function hideDrawerSaving() {
+        if (savingEl) { savingEl.hidden = true; }
+        if (drawer) { drawer.classList.remove('formulize-drawer--saving'); }
+    }
+
+    // Run a promise-returning request with the saving animation up for its duration.
+    // Every write the drawer makes goes through here, so there is one place that decides
+    // what "saving" looks like and none of the callers have to remember to clear it.
+    function whileSaving(run) {
+        showDrawerSaving();
+        var done = function (v) { hideDrawerSaving(); return v; };
+        var failed = function (e) { hideDrawerSaving(); throw e; };
+        try {
+            return Promise.resolve(run()).then(done, failed);
+        } catch (e) {
+            hideDrawerSaving();
+            throw e;
+        }
+    }
+
+    // ---- Fragment loading ------------------------------------------------------
+
     // Fetch a server-rendered fragment into a drawer panel and run its scripts. The
     // panel-agnostic half of loading: both the entry form and the AI assistant use
     // it, and each layers its own bookkeeping on top. Rejects if the load failed,
     // having already put a message in the panel.
-    function loadFragmentInto(targetEl, url, fetchOpts, failureMessage) {
-        targetEl.innerHTML = '<div class="formulize-drawer__loading">' + S().loading + '</div>';
+    //
+    // `keepContent` leaves what is already in the panel alone until the new fragment
+    // arrives, instead of blanking it to the "Loading…" placeholder. That is what a
+    // save uses: full screen leaves the form on screen, dimmed, under the saving
+    // animation, and swapping it for the word "Loading" would hide the animation behind
+    // an empty panel.
+    function loadFragmentInto(targetEl, url, fetchOpts, failureMessage, keepContent) {
+        if (!keepContent) {
+            targetEl.innerHTML = '<div class="formulize-drawer__loading">' + S().loading + '</div>';
+        }
         var opts = fetchOpts || {};
         opts.credentials = 'same-origin';
         return fetch(url, opts)
@@ -374,11 +458,19 @@
     // (change flag, paging metadata, title, current-frame bookkeeping, footer, Back
     // control). Every drawer load — open, page turn, subform descend, back — funnels
     // through here. Returns a promise of the fz-drawer-meta object (null on failure).
+    // A POST is always a write: the fragment endpoint runs readelements.php before it
+    // renders. So every drawer load that carries one raises the saving animation, which
+    // covers save-in-place, a page hop that saves the page it is leaving, and the subform
+    // add/delete/clone round trips -- the same set of actions that make full screen
+    // submit the page and show its own saving graphic.
     function fetchIntoDrawer(url, fetchOpts) {
         if (!bodyEl) { return Promise.resolve(null); }
+        var saving = !!(fetchOpts && String(fetchOpts.method || '').toUpperCase() === 'POST');
+        if (saving) { showDrawerSaving(); }
         pruneDeadEditors();
-        return loadFragmentInto(bodyEl, url, fetchOpts, S().loadFailed)
+        return loadFragmentInto(bodyEl, url, fetchOpts, S().loadFailed, saving)
             .then(function () {
+                hideDrawerSaving();
                 // Each freshly loaded form starts as unchanged. The endpoint only defines
                 // formulizechanged when it is undefined, so reset it here to clear any value
                 // left over from a previous drawer session.
@@ -402,6 +494,7 @@
             .catch(function () {
                 // loadFragmentInto has already put the failure message in the panel;
                 // callers just need the null.
+                hideDrawerSaving();
                 return null;
             });
     }
@@ -504,8 +597,10 @@
     // screen strip uses, so the two surfaces always show the same tabs.
     //
     // Unlike the full screen strip there is no leading "save and leave" tab: that is not
-    // a page, and the footer already offers it as a button, so putting it here would be
-    // the same action in two places.
+    // a page. Where the screen's button set already carries a leave action (page one's
+    // "prev" slot) the footer has it; where the screen offers no nav buttons at all
+    // (navstyle 1) the footer picks it up from the form button metadata instead. Either
+    // way it is a button, and only ever in one place.
     function renderPageTabs() {
         if (!tabsEl) { return; }
         tabsEl.innerHTML = '';
@@ -616,25 +711,39 @@
         }
 
         var navButtons = drawerShowsNavButtons(nav);
+        // The screen's button set for the page being shown, computed server side by
+        // formulize_multipageButtonSet() — the very same call the full screen action bar
+        // is built from — and published in fz-multipage-nav as ordered {slot, text}
+        // pairs. Rendering it verbatim is what makes the drawer's footer the full screen
+        // footer: on the kitchen sink screen that is "Save and Close / Save / Close /
+        // Save and Continue" on page one, "Save and Go Back / Save / Close / Save and
+        // Continue" in the middle, and "... / Save and Finish" on the last page, because
+        // that is what the screen's own settings resolve to there.
+        //
+        // This replaces the drawer's old assembly of a button set out of two separate
+        // pieces of metadata, which past page one produced a previous-page control AND a
+        // save-and-leave control where full screen shows only the first (the button-set
+        // difference flagged in the previous round of this review).
+        var navSet = (multiPage && navButtons && nav.buttons && nav.buttons.length) ? nav.buttons : null;
 
-        // No '‹'/'›' chevrons on the labels: full screen renders the screen's configured
-        // button text verbatim, and the drawer must not decorate what the screen said.
-        if (multiPage && navButtons && nav.previousPage && nav.previousButtonText) {
-            footEl.appendChild(makeButton(nav.previousButtonText, 'prev', function () {
-                goToPage(nav.previousPage);
-            }));
+        if (navSet) {
+            navSet.forEach(function (slotButton) {
+                footEl.appendChild(makeButton(slotButton.text, slotButton.slot,
+                                              navSlotAction(slotButton.slot, nav, inSub)));
+            });
+            // A screen with no close button still needs a way out of a sub entry.
+            if (inSub && !navSet.some(function (b) { return b.slot === 'close'; })) {
+                footEl.appendChild(makeButton(S().back, 'close', goBack));
+            }
+            return;
         }
 
-        // Save and leave takes the full screen bar's "previous" slot, because that is
-        // literally where full screen puts it: formulizeMultipagePreviousButtonText()
-        // returns the screen's leaveButtonText on page one, so the control rendered as
-        // name="prev" there reads "Save and Close". Same slot, same name, same styling.
-        //
-        // Past page one full screen gives that slot over to the real previous-page
-        // control and drops save-and-leave entirely, whereas the drawer offers both (it
-        // reads them from two different pieces of metadata). That is a button-set
-        // difference, not a styling one, so it is left as it is here -- two prev-slot
-        // controls, both secondary, sitting together in the bar's prev position.
+        // No multipage button set to follow: either a single page form, or a screen whose
+        // navstyle asks for tabs alone (navstyle 1), where full screen has no prev/next
+        // controls and offers save-and-leave as the leading tab of its tab strip instead.
+        // The drawer's strip carries pages only, so that control becomes a footer button
+        // here — in the bar's "prev" slot, which is literally where full screen puts the
+        // leave action when it renders it as a button.
         if (buttons.saveAndLeave) {
             footEl.appendChild(makeButton(buttons.saveAndLeave, 'prev', saveEntryFromDrawer));
         }
@@ -655,14 +764,37 @@
         } else if (inSub) {
             footEl.appendChild(makeButton(S().back, 'close', goBack));
         }
+    }
 
-        if (multiPage && navButtons && nav.nextButtonText) {
-            footEl.appendChild(makeButton(
-                nav.nextButtonText,
-                'next',
-                nav.nextIsThanks ? finishDrawer : function () { goToPage(nav.nextPage); }
-            ));
+    // What each slot of the multipage button set does, mirroring the onclick
+    // generatePrevNextButtonMarkup() gives the same-named button full screen:
+    //
+    //   prev   submitForm(previousPage) — save this page and go back one. On page one
+    //          there is no previous page, and full screen instead sends the user to the
+    //          thanks page (submitForm(thanksPage, 1)), which is the save-and-leave the
+    //          screen's leaveButtonText labels it with.
+    //   save   submitForm(currentPage, currentPage) — save in place, stay here.
+    //   close  verifyDone() — leave without saving, confirming first if there are edits.
+    //          In a sub entry "leaving" is returning to the parent, exactly as full
+    //          screen's close does there.
+    //   next   submitForm(nextPage) — save this page and go on; when the next page is
+    //          the thanks page this is the finish action, which in the drawer means
+    //          saving and closing (the thanks page renders empty in elements-only mode,
+    //          so there is nothing to show).
+    function navSlotAction(slot, nav, inSub) {
+        switch (slot) {
+            case 'prev':
+                return nav.previousPage
+                    ? function () { goToPage(nav.previousPage); }
+                    : saveEntryFromDrawer;
+            case 'save':
+                return saveAndStay;
+            case 'close':
+                return inSub ? goBack : closeEntryDrawer;
+            case 'next':
+                return nav.nextIsThanks ? finishDrawer : function () { goToPage(nav.nextPage); };
         }
+        return function () {};
     }
 
     // Open the printable view of the loaded entry, posting exactly what the full screen
@@ -800,21 +932,25 @@
         });
     }
 
-    // POST the current page's fields to readelements.php to persist them. Returns the
-    // jqXHR so callers can chain. The entry id is carried in the field names, so this
-    // works for both new and existing entries.
+    // POST the current page's fields to readelements.php to persist them. Returns a
+    // promise so callers can chain. The entry id is carried in the field names, so this
+    // works for both new and existing entries. The saving animation is up for the round
+    // trip, as it is full screen (PR #127 review) — this is the drawer's other write
+    // path; the fragment endpoint's POSTs are covered in fetchIntoDrawer.
     function saveCurrentPage(form) {
         // hidden inputs (tokens) must be enabled so they are included in the FormData
         form.querySelectorAll('input[type="hidden"]').forEach(function (i) { i.disabled = false; });
         var saveUrl = moduleBase + SAVE_ENDPOINT +
             '?fid='  + encodeURIComponent(form.getAttribute('data-fid') || '') +
             '&frid=' + encodeURIComponent(form.getAttribute('data-frid') || 0);
-        return jQuery.post({
-            url: saveUrl,
-            data: new FormData(form),
-            cache: false,
-            contentType: false,
-            processData: false
+        return whileSaving(function () {
+            return jQuery.post({
+                url: saveUrl,
+                data: new FormData(form),
+                cache: false,
+                contentType: false,
+                processData: false
+            });
         });
     }
 

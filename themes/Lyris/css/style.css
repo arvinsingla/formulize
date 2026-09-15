@@ -3002,6 +3002,17 @@ body:not(.fz-inline) .fz-main #pageNavTable.pill-tabs.is-scrolled::after {
   padding: 0 var(--s-3);
 }
 
+/* ...until the drawer is wide enough not to be a mobile-width surface any more. At
+   768px and up (drawer.js adds `formulize-drawer--wide` off the drawer's own measured
+   width) the footer's buttons become the ones the full screen bar uses on a desktop:
+   content width, one row, the 34px/16px geometry declared for
+   `.formulizeThemeForm .formulize-form-submit-button` above (PR #127 review). */
+.formulize-drawer--wide .formulize-drawer__foot .formulize-form-submit-button {
+  flex: 0 0 auto;
+  height: 34px !important;
+  padding: 0 16px;
+}
+
 /* On multi-page forms the bar also holds #prev ("Save and Close") and #next
    ("Save and Finish"). Core paints these via ID selectors with an arrow
    background image, `color:#fff !important`, `text-indent`, `text-shadow` and a

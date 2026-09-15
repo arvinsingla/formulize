@@ -2727,11 +2727,9 @@ if($xoopsConfig['theme_set']=='formulize_standalone') {
     print "<div id=savingmessage style=\"display: none;\">\n";
 }
 global $xoopsConfig;
-if ( file_exists(XOOPS_ROOT_PATH."/modules/formulize/images/saving-".$xoopsConfig['language'].".gif") ) {
-    print "<img src=\"" . XOOPS_URL . "/modules/formulize/images/saving-" . $xoopsConfig['language'] . ".gif\">\n";
-} else {
-    print "<img src=\"" . XOOPS_URL . "/modules/formulize/images/saving-english.gif\">\n";
-}
+// the drawer shows the same animation for its own (XHR) saves, so which file that is
+// is resolved in one shared place - see formulize_savingGraphicUrl()
+print "<img src=\"" . formulize_savingGraphicUrl() . "\">\n";
 print "</div>\n";
 
 $uid = $xoopsUser ? $xoopsUser->getVar('uid') : 0;

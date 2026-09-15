@@ -351,10 +351,17 @@ function displayFormPages($formframe, $entry_id, $mainform, $pages, $conditions=
 				$saveAndContinueButtonText['leaveButtonText'] = trans(_formulize_DONE);
 			}
 
-			$previousButtonText = formulizeMultipagePreviousButtonText($saveAndContinueButtonText, $currentPage);
-			$saveButtonText = (is_array($saveAndContinueButtonText) AND isset($saveAndContinueButtonText['saveButtonText'])) ? $saveAndContinueButtonText['saveButtonText'] : '';
-			$nextButtonText = formulizeMultipageNextButtonText($saveAndContinueButtonText, $usersCanSave, pageIsThanksPageOrEquivalent($nextPage, $currentPage, $thanksPage, $pages, $conditions, $entry_id, $fid, $frid));
-			$closeButtonText = (is_array($saveAndContinueButtonText) AND isset($saveAndContinueButtonText['closeButtonText'])) ? $saveAndContinueButtonText['closeButtonText'] : '';
+			// Which buttons this page of this screen has is decided in one place, by
+			// formulize_multipageButtonSet(), and the elements-only rendering below
+			// publishes the answer from that very same call so the drawer's footer and
+			// this bar can never disagree about the set (PR #127 review). All this does
+			// with it is turn each slot into markup.
+			$multipageButtonSet = formulize_multipageButtonSet($saveAndContinueButtonText, $usersCanSave, $currentPage,
+				pageIsThanksPageOrEquivalent($nextPage, $currentPage, $thanksPage, $pages, $conditions, $entry_id, $fid, $frid));
+			$previousButtonText = isset($multipageButtonSet['prev']) ? $multipageButtonSet['prev'] : '';
+			$saveButtonText = isset($multipageButtonSet['save']) ? $multipageButtonSet['save'] : '';
+			$nextButtonText = isset($multipageButtonSet['next']) ? $multipageButtonSet['next'] : '';
+			$closeButtonText = isset($multipageButtonSet['close']) ? $multipageButtonSet['close'] : '';
 			$previousPageButton = generatePrevNextButtonMarkup("prev", $previousButtonText, $usersCanSave, $nextPage, $previousPage, $thanksPage);
 			$nextPageButton = generatePrevNextButtonMarkup("next", $nextButtonText, $usersCanSave, $nextPage, $previousPage, $thanksPage);
 			$savePageButton = generatePrevNextButtonMarkup("save", $saveButtonText, $usersCanSave, $nextPage, $previousPage, $thanksPage);
@@ -419,8 +426,27 @@ function displayFormPages($formframe, $entry_id, $mainform, $pages, $conditions=
 		// standard language constants) so the client-side controls read identically.
 		// An empty label means "no button", exactly as generatePrevNextButtonMarkup treats it.
 		$navButtonText = formulizeMultipageButtonText($saveAndContinueButtonText);
-		$navPreviousButtonText = trans(formulizeMultipagePreviousButtonText($navButtonText, $currentPage));
-		$navNextButtonText = trans(formulizeMultipageNextButtonText($navButtonText, $usersCanSave, $nextIsThanks));
+		// Full screen turns the leave button into "Done" for a user who cannot save
+		// (see the !$elements_only branch above). Applied here too, so the drawer reads
+		// the same word on the same button.
+		if(!$usersCanSave AND isset($navButtonText['leaveButtonText']) AND $navButtonText['leaveButtonText'] == trans(_formulize_SAVE_AND_LEAVE)) {
+			$navButtonText['leaveButtonText'] = trans(_formulize_DONE);
+		}
+		// The page's button set, from the same function that decides the full page bar's
+		// (see the !$elements_only branch above). Published in action bar order as
+		// {slot, text} pairs -- slot being the `name` generatePrevNextButtonMarkup puts
+		// on the full screen button -- so the drawer renders full screen's set rather
+		// than assembling its own from the individual labels. navstyle is NOT applied
+		// here: it is published separately as showNavButtons, and the drawer's one
+		// documented deviation from it (navstyle 3 would strand the user on page one in
+		// a drawer) is applied client side.
+		$navButtonSet = formulize_multipageButtonSet($navButtonText, $usersCanSave, $currentPage, $nextIsThanks);
+		$navButtons = array();
+		foreach($navButtonSet as $navSlot=>$navSlotText) {
+			$navButtons[] = array('slot'=>$navSlot, 'text'=>trans($navSlotText));
+		}
+		$navPreviousButtonText = isset($navButtonSet['prev']) ? trans($navButtonSet['prev']) : '';
+		$navNextButtonText = isset($navButtonSet['next']) ? trans($navButtonSet['next']) : '';
 		// Which navigation affordances the screen is configured to offer. navstyle is a
 		// single setting with four states: 0 buttons, 1 tabs, 2 tabs and buttons, 3 nothing
 		// at all. Full screen reads it at the top of this function to decide what the
@@ -448,6 +474,7 @@ function displayFormPages($formframe, $entry_id, $mainform, $pages, $conditions=
 			'screenId'     => (is_object($screen) ? intval($screen->getVar('sid')) : 0),
 			'entryId'      => (is_numeric($entry_id) ? intval($entry_id) : 0),
 			'pageTitle'    => (isset($pageTitles[$currentPage]) ? trans($pageTitles[$currentPage]) : ''),
+			'buttons'            => $navButtons,
 			'previousButtonText' => $navPreviousButtonText,
 			'nextButtonText'     => $navNextButtonText,
 			'pageWord'           => _formulize_DMULTI_PAGE,
@@ -644,6 +671,54 @@ function formulizeMultipageNextButtonText($buttonText, $usersCanSave, $nextIsTha
     if(!is_array($buttonText)) { return ''; }
     $key = ($usersCanSave AND $nextIsThanksPage) ? 'finishButtonText' : 'nextButtonText';
     return (isset($buttonText[$key]) AND $buttonText[$key]) ? $buttonText[$key] : '';
+}
+
+/**
+ * Which action bar buttons a multipage screen offers on the page being rendered, and
+ * what each one is called.
+ *
+ * This is the single answer to "what buttons does this page of this screen have". The
+ * full page rendering builds its `#multipage-controls` bar out of it, and the
+ * elements-only rendering publishes it to the client so the right drawer's footer can
+ * draw the same set instead of assembling an approximation of it from separate pieces
+ * of metadata (which is what left the drawer showing both a previous-page control and
+ * a save-and-leave control past page one, where full screen shows only the first --
+ * PR #127 review).
+ *
+ * The slot names are the `name` attributes generatePrevNextButtonMarkup puts on the
+ * markup, and the order is the order the multiPage bottomtemplate emits them in:
+ *
+ *   prev  - the screen's leave button on page one (so page one reads "Save and Close"
+ *           and the control saves and leaves), the previous-page button after that
+ *   save  - save in place; suppressed outright when the user cannot save
+ *   close - leave without saving
+ *   next  - the next-page button, becoming the finish button on the last page
+ *
+ * A slot with no text is not a button, exactly as generatePrevNextButtonMarkup treats
+ * it, and is left out of the returned set.
+ *
+ * @param array $buttonText The screen's resolved button text, i.e. the return of
+ *                          formulizeMultipageButtonText()
+ * @param bool $usersCanSave Whether this user can save the entry
+ * @param int $currentPage The page being rendered
+ * @param bool $nextIsThanksPage Whether the page after this one is (or resolves to)
+ *                               the thanks page
+ * @return array slot name => untranslated button text, in action bar order
+ */
+function formulize_multipageButtonSet($buttonText, $usersCanSave, $currentPage, $nextIsThanksPage) {
+    $slots = array(
+        'prev'  => formulizeMultipagePreviousButtonText($buttonText, $currentPage),
+        'save'  => (is_array($buttonText) AND isset($buttonText['saveButtonText'])) ? $buttonText['saveButtonText'] : '',
+        'close' => (is_array($buttonText) AND isset($buttonText['closeButtonText'])) ? $buttonText['closeButtonText'] : '',
+        'next'  => formulizeMultipageNextButtonText($buttonText, $usersCanSave, $nextIsThanksPage),
+    );
+    $set = array();
+    foreach($slots as $slot=>$text) {
+        // the same two tests generatePrevNextButtonMarkup applies before it emits anything
+        if(!$text OR ($slot == 'save' AND !$usersCanSave)) { continue; }
+        $set[$slot] = $text;
+    }
+    return $set;
 }
 
 // THIS FUNCTION GENERATES THE MARKUP FOR THE PREVIOUS AND NEXT BUTTONS

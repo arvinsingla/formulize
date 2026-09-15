@@ -4232,3 +4232,23 @@ input#toggleRepeatData:focus-visible {
   width: 34px;
   padding: 0;
 }
+
+/* Once the drawer is 768px or wider (drawer.js adds `formulize-drawer--wide` off the
+   drawer's own measured width) its footer stops wearing the full screen form's mobile
+   action bar and wears Anari's ordinary button instead: one row, and the `12px 30px`
+   padding, 0.9rem/1.3 type and auto height Anari gives every `input[type=button]` and
+   restates on `.formulize-form-submit-button`. Core's `--wide` rule sets a generic
+   36px/16px, which this replaces with Anari's own geometry (PR #127 review).
+
+   The one thing deliberately NOT taken from Anari's full screen bar is its 200px
+   min-width. Four 200px buttons need 800px plus gaps, which is what makes that bar
+   overflow horizontally on a narrow screen (a pre-existing Anari bug, noted in the
+   previous round of this review); importing it would put the same overflow inside the
+   drawer, where the drawer's minimum width guarantees it. The buttons size to their
+   labels instead, which is what Anari's own rule would give them without that floor. */
+.formulize-drawer--wide .formulize-drawer__foot .formulize-form-submit-button {
+  height: auto;
+  padding: 12px 30px;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
