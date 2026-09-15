@@ -1488,22 +1488,12 @@ a.de-edit-icon:hover::before {
    selectors never touch ordinary cells.
    ============================================================ */
 
-/* View mode: put the pencil on the same line as the cell text and
-   drop the float/2em-indent layout that pushed it out of alignment. */
-.fz-table .main-cell-div:has(> .formulize-display-element-edit-icon) {
-  display: flex;
-  align-items: baseline;
-  gap: 0.4em;
-}
-
-.fz-table .main-cell-div > .formulize-display-element-edit-icon {
-  float: none;
-  margin: 0;
-}
-
-.fz-table .main-cell-div > .formulize-display-element-contents {
-  padding-left: 0;
-}
+/* View mode: layout is handled globally now (PR #135 review) — core
+   formulize.css lays the pencil cell out as a flex row and right-aligns
+   the pencil against the cell edge for every theme, so the Lyris-only
+   float/indent overrides that used to live here are gone. Anything left
+   under .fz-table here must stay cosmetic: a layout override scoped to
+   .fz-table outranks the core rules and would un-do the right alignment. */
 
 /* Pencil glyph colour is handled globally now (issue #61) — see the
    `a.loe-edit-entry::before, a.de-edit-icon::before` block above. */
