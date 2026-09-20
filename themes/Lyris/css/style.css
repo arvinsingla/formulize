@@ -24,7 +24,7 @@ body {
    and moving it moves all of them together.
 
    Three layers get a say, in this order: the theme's own default
-   (--font-size-base in tokens.css), the site-wide Base font size setting on the
+   (--font-size-base in tokens.css), the site-wide Text size setting on the
    Appearance page (which overrides that token in the generated appearance.css),
    and finally a user's personal font size preference, which theme.html prints as
    an inline style further down the document and so wins over both. */

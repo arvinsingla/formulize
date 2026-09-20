@@ -2647,7 +2647,7 @@ form[name=relationship-options-popupform] label[for^=relationships-] {
 }
 /* Live font preview. A quiet panel rather than another field: it is the result of
    the picker above it, not a control, so it reads as a sample rather than as the
-   next thing to fill in. The box carries the base font size and the sample inside
+   next thing to fill in. The box carries the chosen text size and the sample inside
    it carries the family, so the two settings combine the way they will on the site.
    No fixed height, but a generous line-height, so swapping between fonts of
    different metrics doesn't make the rows below it jump. */

@@ -332,52 +332,159 @@ function formulize_appearanceHeadingFontMap($theme = null) {
     return $fonts;
 }
 
-/**
- * The base font sizes on offer, ie: the root font size the rest of the type
- * scale is expressed relative to. A short list of whole pixel sizes rather than
- * a free number field: every size here is one the themes have been looked at in,
- * and the type scale is proportional, so a couple of steps either side of the
- * default is the whole useful range.
+/* ---- Text size ----
  *
- * @return array css length => label
+ * Two different sizes are in play here, and keeping them apart is the whole
+ * point of this group of functions.
+ *
+ * The size that has to be *set* is the root font size: `html { font-size }`,
+ * which both themes express their whole type scale as a proportion of, and so
+ * the only value that moves every text size together.
+ *
+ * The size an admin is *thinking about* is the one they can see: the standard
+ * text in lists and content. In Lyris that is --fs-13, ie: 13px, not the 16px
+ * root it is derived from. Showing them "16px" and calling it the font size is
+ * telling them their content text is 16px when it is 13px.
+ *
+ * So the Appearance page works entirely in content text size - that is what the
+ * dropdown offers, what is recorded in the generated stylesheet's settings
+ * block, and what is read back into the form - and the conversion to the root
+ * size happens once, on the way into the CSS, using the ratio the theme
+ * declares. Nothing the admin sees is ever the root size.
  */
-function formulize_appearanceFontSizeMap() {
-    return array(
-        '14px' => '14px - smaller',
-        '15px' => '15px',
-        '16px' => '16px - default',
-        '17px' => '17px',
-        '18px' => '18px - larger',
-        '20px' => '20px - largest',
-    );
+
+/**
+ * How big a theme's standard content text is as a proportion of its root font
+ * size, from the --font-size-content-ratio the theme declares.
+ *
+ * Each theme declares its own because each sets its content text at a different
+ * step of its scale: Lyris's content rules are --fs-13 (0.8125rem) and so it
+ * declares 0.8125, while Anari sizes content text at the root size itself and
+ * declares 1. A theme that declares nothing is read as 1, which is the safe
+ * reading: the setting then simply means what it says.
+ *
+ * @param string|null $theme theme folder name, defaults to the active theme
+ * @return float a ratio greater than zero
+ */
+function formulize_appearanceContentRatio($theme = null) {
+    $tokens = formulize_appearanceThemeTokens($theme);
+    $ratio = isset($tokens['--font-size-content-ratio']) ? (float) $tokens['--font-size-content-ratio'] : 0;
+    return ($ratio > 0) ? $ratio : 1;
 }
 
 /**
- * The base font size a theme uses when none has been chosen on the Appearance
+ * The root font size a theme uses when none has been chosen on the Appearance
  * page, ie: the --font-size-base it declares itself. Read from the theme the
  * same way the default colours are, so the Appearance page shows and resets to
  * what the theme actually looks like.
+ *
+ * Not validated against the sizes on offer: those are content sizes now, and
+ * this is a root size, so the only question is whether it is a pixel length.
  *
  * @param string|null $theme theme folder name, defaults to the active theme
  * @return string a css length, eg: '16px'
  */
 function formulize_appearanceThemeFontSize($theme = null) {
     $tokens = formulize_appearanceThemeTokens($theme);
-    $value = formulize_sanitizeAppearanceFontSize(isset($tokens['--font-size-base']) ? $tokens['--font-size-base'] : '');
-    return $value ? $value : '16px';
+    $value = strtolower(trim(isset($tokens['--font-size-base']) ? $tokens['--font-size-base'] : ''));
+    return preg_match('/^[0-9]+(?:\.[0-9]+)?px$/', $value) ? $value : '16px';
 }
 
 /**
- * Validate a user-supplied base font size. Only the sizes we offer are accepted,
- * so nothing arbitrary can be written into the generated stylesheet.
+ * The content text size a theme renders at out of the box: its own root size
+ * taken through its content ratio. This is the theme's default as far as the
+ * Appearance page is concerned - what it shows when nothing has been chosen,
+ * and what "Reset Everything to Defaults" goes back to.
+ *
+ * Rounded to a whole pixel, because the sizes on offer are whole pixels: a
+ * theme whose content text lands on a fraction is offered the nearest whole
+ * size, which is a difference of well under a pixel and not one anybody would
+ * rather see written as 12.9999px in a dropdown.
+ *
+ * @param string|null $theme theme folder name, defaults to the active theme
+ * @return string a css length, eg: '13px'
+ */
+function formulize_appearanceThemeContentSize($theme = null) {
+    $base = (float) formulize_appearanceThemeFontSize($theme);
+    return round($base * formulize_appearanceContentRatio($theme)) . 'px';
+}
+
+/**
+ * The content text sizes on offer, for the theme being edited. A short list of
+ * whole pixel sizes rather than a free number field: the type scale is
+ * proportional, so a couple of steps either side of the theme's own size is the
+ * whole useful range.
+ *
+ * The steps are the same proportions the list has always offered (0.875 to 1.25
+ * of the default), applied to the theme's own content size instead of to a fixed
+ * 16px, so the middle option is always the theme's real current size and the
+ * others are the same relative jumps. On Anari, whose content ratio is 1, that
+ * reproduces exactly the 14-20px list; on Lyris it becomes 11-16px around 13px.
+ *
+ * @param string|null $theme theme folder name, defaults to the active theme
+ * @return array css length => label
+ */
+function formulize_appearanceFontSizeMap($theme = null) {
+    $default = (float) formulize_appearanceThemeContentSize($theme);
+    $steps = array(
+        array(0.875,  'smaller'),
+        array(0.9375, ''),
+        array(1,      'default'),
+        array(1.0625, ''),
+        array(1.125,  'larger'),
+        array(1.25,   'largest'),
+    );
+    $sizes = array();
+    foreach ($steps as $step) {
+        $size = round($default * $step[0]) . 'px';
+        // rounding to whole pixels can land two steps on the same size when the
+        // theme's own size is small. The labelled steps are the ones worth keeping,
+        // so an unlabelled duplicate is dropped rather than overwriting one.
+        if (isset($sizes[$size]) AND $step[1] === '') {
+            continue;
+        }
+        $sizes[$size] = $step[1] ? ($size . ' - ' . $step[1]) : $size;
+    }
+    return $sizes;
+}
+
+/**
+ * Validate a user-supplied content text size. Only the sizes we offer for that
+ * theme are accepted, so nothing arbitrary can be written into the generated
+ * stylesheet, and a size saved for one theme can't be read back as a valid one
+ * for another whose scale is different.
  *
  * @param string $value the submitted size
+ * @param string|null $theme theme folder name, defaults to the active theme
  * @return string the size, or '' if it isn't one we offer
  */
-function formulize_sanitizeAppearanceFontSize($value) {
+function formulize_sanitizeAppearanceFontSize($value, $theme = null) {
     $value = strtolower(trim((string) $value));
-    $sizes = formulize_appearanceFontSizeMap();
+    $sizes = formulize_appearanceFontSizeMap($theme);
     return isset($sizes[$value]) ? $value : '';
+}
+
+/**
+ * The root font size to set so that a theme's content text comes out at the
+ * size an admin picked: the chosen size divided by the theme's content ratio.
+ * This is the one place the translation happens, and it is the only place the
+ * root size is ever produced from a setting.
+ *
+ * Kept to four decimal places, which puts the resulting content text within a
+ * thousandth of a pixel of the size asked for while staying readable in the
+ * generated stylesheet.
+ *
+ * @param string $contentSize the chosen content text size, eg: '14px'
+ * @param string|null $theme theme folder name, defaults to the active theme
+ * @return string a css length, eg: '17.2308px', or '' if the size is unusable
+ */
+function formulize_appearanceBaseFontSizeFor($contentSize, $theme = null) {
+    $content = (float) $contentSize;
+    if ($content <= 0) {
+        return '';
+    }
+    $base = number_format($content / formulize_appearanceContentRatio($theme), 4, '.', '');
+    return rtrim(rtrim($base, '0'), '.') . 'px';
 }
 
 /**
@@ -561,10 +668,13 @@ function formulize_sanitizeAppearanceSettings($values, $theme = null) {
     }
     $clean['appearance_headingfont'] = ($headingFont == 'geist') ? '' : $headingFont;
     $clean['appearance_headingcustomfont'] = ($headingFont == 'custom') ? $headingCustomFont : '';
-    // nothing is recorded for the theme's own base size, the same way a default colour
-    // isn't, so the theme keeps deciding what its default type scale is
-    $fontSize = formulize_sanitizeAppearanceFontSize(isset($values['appearance_fontsize']) ? $values['appearance_fontsize'] : '');
-    $clean['appearance_fontsize'] = ($fontSize == formulize_appearanceThemeFontSize($theme)) ? '' : $fontSize;
+    // Recorded as the content text size the admin picked, not the root font size it
+    // works out to: the setting means what the Appearance page says it means, and the
+    // translation happens on the way into the CSS. Nothing is recorded for the theme's
+    // own size, the same way a default colour isn't, so the theme keeps deciding what
+    // its default type scale is.
+    $fontSize = formulize_sanitizeAppearanceFontSize(isset($values['appearance_fontsize']) ? $values['appearance_fontsize'] : '', $theme);
+    $clean['appearance_fontsize'] = ($fontSize == formulize_appearanceThemeContentSize($theme)) ? '' : $fontSize;
     // the logo is a bare filename in the theme's appearance folder, never a path
     $logo = basename(trim((string) (isset($values['appearance_logo']) ? $values['appearance_logo'] : '')));
     $clean['appearance_logo'] = preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $logo) ? $logo : '';
@@ -971,7 +1081,8 @@ function formulize_appearanceDirIsWritable($theme = null) {
 /**
  * The CSS custom property overrides the current settings call for: the font
  * stack when a non-default font is chosen, the secondary font stack when a
- * separate one is chosen for headings and labels, the base font size when it
+ * separate one is chosen for headings and labels, the root font size the chosen
+ * text size works out to when it
  * differs from the theme's, and the colour tokens (with their derived variants)
  * for every colour that differs from the design defaults.
  *
@@ -992,11 +1103,13 @@ function formulize_getAppearanceCssOverrides($settings = null, $theme = null) {
     if ($font['heading']) {
         $overrides['--font-heading'] = $font['heading'];
     }
-    // The root font size, which the themes express the rest of their type scale
-    // relative to, so moving this moves every text size with it.
-    $fontSize = formulize_sanitizeAppearanceFontSize(isset($settings['appearance_fontsize']) ? $settings['appearance_fontsize'] : '');
-    if ($fontSize AND $fontSize != formulize_appearanceThemeFontSize($theme)) {
-        $overrides['--font-size-base'] = $fontSize;
+    // The text size setting is the size of the standard content text, so it is
+    // converted here to the root font size that produces it - the root size being
+    // what the themes express the rest of their type scale relative to, and so the
+    // one value that moves every text size together.
+    $fontSize = formulize_sanitizeAppearanceFontSize(isset($settings['appearance_fontsize']) ? $settings['appearance_fontsize'] : '', $theme);
+    if ($fontSize AND $fontSize != formulize_appearanceThemeContentSize($theme)) {
+        $overrides['--font-size-base'] = formulize_appearanceBaseFontSizeFor($fontSize, $theme);
     }
     foreach (formulize_appearanceColourMap($theme) as $key => $colour) {
         $value = formulize_sanitizeAppearanceColour($settings['appearance_' . $key]);
@@ -1051,6 +1164,18 @@ function formulize_buildAppearanceCss($settings = null, $theme = null) {
             $css .= '  ' . $token . ': ' . $value . ";\n";
         }
         $css .= "}\n";
+    }
+    // Apply the root font size here as well as declaring the token, rather than
+    // relying on the theme to have wired --font-size-base up to `html` itself.
+    // This file is the record of the setting and is loaded after the theme's own
+    // stylesheets, so having it do the applying means the size can never be
+    // recorded here and yet have no effect - which is exactly what a theme that
+    // declared the token without applying it would produce, and is not something
+    // anyone looking at this file would be able to see. Both bundled themes do
+    // apply it, so for them this is the same declaration twice over, and a
+    // theme's own rule is still what a default site renders with.
+    if (isset($overrides['--font-size-base'])) {
+        $css .= "html {\n  font-size: var(--font-size-base);\n}\n";
     }
     return $css;
 }

@@ -97,16 +97,18 @@
             <span class="fz-appearance-font-preview-sample fz-appearance-font-preview-sample--heading">The quick brown fox jumps over the lazy dog</span>
         </div>
 
-        <{* Base font size: the root font size both themes express their type scale
-           relative to, so this moves every text size together. *}>
+        <{* Text size: the size the standard content text renders at, which is what
+           an admin means by "font size". The root font size that actually produces
+           it is worked out from this and written into the generated stylesheet -
+           see the Text size functions in include/appearance.php. *}>
         <div class="fz-appearance-field">
-            <label for="appearance_fontsize">Base font size</label>
+            <label for="appearance_fontsize">Text size</label>
             <select name="appearance_fontsize" id="appearance_fontsize" onchange="appearanceUpdateFontPreviews();">
             <{foreach from=$adminPage.fontSizes item=size}>
                 <option value="<{$size.key}>" <{if $adminPage.currentFontSize == $size.key}>selected="selected"<{/if}>><{$size.label}></option>
             <{/foreach}>
             </select>
-            <span class="fz-appearance-hint">Every other text size is a proportion of this one, so raising it makes the whole interface larger. Individual users can still override it with the font size setting in their own profile. This theme's own default is <{$adminPage.defaultFontSize}>.</span>
+            <span class="fz-appearance-hint">The size of the standard text in lists and content. Every other text size is a proportion of it, so raising it makes the whole interface larger. Individual users can still override it with the font size setting in their own profile. This theme's own default is <{$adminPage.defaultFontSize}>.</span>
         </div>
     </fieldset>
 
@@ -222,7 +224,9 @@ function appearanceUpdateFontPreviews() {
         } else {
             sample.style.fontFamily = '';
         }
-        // the base size applies to everything, so the samples are shown at it too
+        // The samples are shown at the chosen text size. That size is the standard
+        // content text size, so the sample is literally the size the words in lists
+        // and content will come out at - which is what makes it worth previewing.
         if (size && size.value) {
             box.style.fontSize = size.value;
         }

@@ -63,10 +63,24 @@
 
   /* Base font size: the root font size, applied to `html` in style.css, that the
      --fs-* scale below is expressed as a proportion of. Changing it moves the
-     whole type scale together, which is what the Appearance page's "Base font
-     size" setting does, and what a user's own profile font size setting does on
-     top of that (see theme.html). */
+     whole type scale together, which is what the Appearance page's "Text size"
+     setting does, and what a user's own profile font size setting does on top of
+     that (see theme.html). */
   --font-size-base: 16px;
+
+  /* How big this theme's standard content text is as a proportion of the base
+     above: the --fs-* step the rules for text in lists, tables and content use,
+     which in this theme is --fs-13, ie: 0.8125rem, ie: 13px against the 16px
+     base. The Appearance page reads this, and offers its "Text size" setting in
+     content pixels rather than base ones, because "font size" to the person
+     setting it means the size of the words on the screen, not the number the
+     scale happens to be derived from. It divides the size picked by this ratio
+     to get the base font size to set.
+
+     Keep it in step with the --fs-* token the content rules actually use: it is
+     the one place that relationship is written down for anything outside this
+     stylesheet to read. */
+  --font-size-content-ratio: 0.8125;
 
   /* Type scale. Named for the pixel size each step is at the 16px default base,
      and written in rem so every step stays that proportion of whatever the base

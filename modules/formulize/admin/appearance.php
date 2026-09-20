@@ -183,11 +183,15 @@ foreach($fontMap as $key => $font) {
     }
 }
 
+// The sizes on offer are the size the standard content text renders at, not the root
+// font size underneath it, and they are the selected theme's: each theme sets its
+// content text at a different step of its own scale. See the Text size group of
+// functions in include/appearance.php for the translation between the two.
 $fontSizes = array();
-foreach(formulize_appearanceFontSizeMap() as $size => $label) {
+foreach(formulize_appearanceFontSizeMap($selectedTheme) as $size => $label) {
     $fontSizes[] = array('key' => $size, 'label' => $label);
 }
-$defaultFontSize = formulize_appearanceThemeFontSize($selectedTheme);
+$defaultFontSize = formulize_appearanceThemeContentSize($selectedTheme);
 
 // the logo can still be sitting in the legacy uploads/appearance folder on a site
 // that had one uploaded before appearance files moved into the theme folders, so
