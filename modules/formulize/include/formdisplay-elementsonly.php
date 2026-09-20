@@ -327,14 +327,11 @@ print "</form>\n";
 // drawer builds its footer from this, which is what keeps the two surfaces consistent.
 print formulize_elementsOnlyButtonMetaJs($screen, $fid);
 
-// The header-strip controls this render produced (the Show/Hide 'Office Use Only' pair,
-// when the person may set entry ownership). Built by the same function that builds them
-// for the full screen header, and published here rather than emitted in place because
-// everything this endpoint prints lands inside the drawer's scrolling body and inside the
-// posted <form> - chrome has to go in the drawer's own strip. drawer.js puts it there,
-// beside the print control, at the same right hand end of the page strip the full screen
-// form uses (PR #153 review).
-print formulize_elementsOnlyHeaderActionsJs();
+// NB there is no separate header-action metadata any more. The only thing that ever
+// travelled that way was the Show/Hide 'Office Use Only' pair, and PR #153's review put
+// that back in the form body next to the proxy/owner field it reveals, where it renders
+// as an ordinary element of this fragment. The drawer's header strip is built entirely
+// from the button metadata above.
 
 // Rich-text (CKEditor) bootstrap. In a full page load formdisplay.php's drawJavascript()
 // loads the CKEditor library (via $xoTheme->addScript) and emits the initializeCKEditor /

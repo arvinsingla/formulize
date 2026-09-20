@@ -1145,6 +1145,41 @@ button.fz-header-action:focus-visible {
 	}
 }
 
+/* The drawer answers the same question against its own width, not the window's.
+   (PR #153 review: the drawer was not following the breakpoint rules.)
+
+   The media query above asks how wide the WINDOW is, which is the right question for
+   the full screen strip, because that strip is as wide as the window. It is the wrong
+   question for the drawer: the drawer is a ~30vw panel that the user can also drag to
+   any width between 390px and 92vw, so on a 1440px desktop the media query says
+   "desktop" and the labels show inside a 430px panel that has nowhere to put them -
+   and no amount of dragging the drawer narrower ever collapses them, because the
+   window never changed. So the drawer never actually had the breakpoint behaviour.
+
+   drawer.js already measures the drawer and flags it `formulize-drawer--wide` at the
+   same 768px (it does this for the footer's button treatment, PR #127), so the rule
+   here is the same rule keyed to the right box. These sit after the media query and
+   are one class more specific than it, so they win at every window width, and the
+   --wide pair comes last so it wins over the plain drawer pair. */
+.formulize-drawer .fz-header-action__label {
+	display: none;
+}
+.formulize-drawer .fz-header-action__badge {
+	display: inline;
+}
+.formulize-drawer button.fz-header-action {
+	padding: 0 6px;
+}
+.formulize-drawer--wide .fz-header-action__label {
+	display: inline;
+}
+.formulize-drawer--wide .fz-header-action__badge {
+	display: none;
+}
+.formulize-drawer--wide button.fz-header-action {
+	padding: 0 8px;
+}
+
 @media print {
 	.fz-header-actions,
 	.fz-header-actions-standalone {

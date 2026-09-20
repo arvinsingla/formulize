@@ -79,14 +79,15 @@ class formulize_themeForm extends XoopsThemeForm {
 
     // Icon buttons that belong in the form screen's header strip (top right, across from
     // the page tabs) rather than at the bottom of the form body - issue #151. Populated
-    // while the form is being built (addSubmitButton, addOwnershipList) and handed to the
-    // toptemplate as $headerActions when the form renders, which is after every element
-    // has been added. Elements-only renders never fill this - not because they have no
-    // header actions (since PR #153's review they have the same ones) but because
-    // everything they emit lands inside the host's scrolling body and inside the posted
-    // <form>, which is the wrong place for chrome. Those renders publish the same markup
-    // as metadata instead (formulize_registerElementsOnlyHeaderActions), and the host -
-    // the right slide-out drawer - places it in its own strip.
+    // while the form is being built (addSubmitButton) and handed to the toptemplate as
+    // $headerActions when the form renders, which is after every element has been added.
+    // Only the printable view control(s) go here: a header action has to be something
+    // that leaves the form (printing does), because a control whose effect is a change
+    // somewhere in the form body is too far from what it changes to be understood there
+    // (PR #153 review - which is why the Office Use Only toggle went back into the body).
+    // Elements-only renders never fill this; everything they emit lands inside the host's
+    // scrolling body and inside the posted <form>, which is the wrong place for chrome,
+    // so the drawer builds its own strip from the published button metadata instead.
     private $headerActions = array();
 
 
@@ -2009,7 +2010,9 @@ function formulize_recordElementsOnlyButtonMeta($go_back, $currentURL, $button_t
 	$buttons = formulize_resolveFormButtons($button_text, $go_back, $fid, $uid, $entry, $allDoneOverride, $printall, $currentURL, _formulize_SAVE);
 
 	$meta = array(
-		'printableView' => isset($buttons['printableview']) ? trans($buttons['printableview']) : null,
+		// the drawer puts this in its header strip, the same place the full screen form
+		// puts it, so it gets the same shortened wording (PR #153 review)
+		'printableView' => isset($buttons['printableview']) ? trans(formulize_headerActionPrintLabel($buttons['printableview'])) : null,
 		'save'          => isset($buttons['save'])          ? trans($buttons['save'])          : null,
 		'saveAndLeave'  => isset($buttons['saveandleave'])  ? trans($buttons['saveandleave'])  : null,
 		'done'          => isset($buttons['done'])          ? trans($buttons['done'])          : null,
@@ -2025,6 +2028,36 @@ function formulize_recordElementsOnlyButtonMeta($go_back, $currentURL, $button_t
 	}
 
 	formulize_registerElementsOnlyButtonMeta(formulize_elementsOnlyButtonMetaKey($screen, $fid), $meta);
+}
+
+/**
+ * The wording a printable view control carries in the header strip, full screen and in
+ * the drawer alike.
+ *
+ * The strip is a row of small controls sharing a line with the page tabs, so a label like
+ * "Printable Version - All Pages" pushes the cluster onto its own line on any screen that
+ * has a few tabs (PR #153 review: "the labels are definitely too long"). The stock wording
+ * is therefore shortened to "Print" / "Print all" here - and only here. Everywhere that
+ * wording is a screen setting rather than a label (the admin default, the migration, the
+ * printview page itself) still uses _formulize_PRINTVIEW unchanged.
+ *
+ * A screen that has configured its own printable view text keeps it verbatim: that is a
+ * deliberate choice by whoever set up the screen, and it is not this function's business
+ * to second guess it.
+ *
+ * @param string $configuredText - the screen's resolved printable view button text
+ * @param bool $allPages - true for the "all pages" variant of the control
+ * @return string - raw (untranslated) label; callers pass it through trans()
+ */
+function formulize_headerActionPrintLabel($configuredText, $allPages = false) {
+	if(trim($configuredText) === trim(_formulize_PRINTVIEW)) {
+		// guarded: only the english language file carries the short constants
+		if($allPages) {
+			return defined('_formulize_PRINTALLVIEW_SHORT') ? _formulize_PRINTALLVIEW_SHORT : 'Print all';
+		}
+		return defined('_formulize_PRINTVIEW_SHORT') ? _formulize_PRINTVIEW_SHORT : 'Print';
+	}
+	return $allPages ? str_replace(_formulize_PRINTVIEW, $configuredText, _formulize_PRINTALLVIEW) : $configuredText;
 }
 
 /**
@@ -2048,6 +2081,8 @@ function formulize_recordElementsOnlyButtonMeta($go_back, $currentURL, $button_t
  *
  * @param string $iconClass - the formulize-icons class, e.g. 'icon-print'
  * @param string $label - the accessible name / tooltip text / visible desktop text
+ *                        (for the print controls, pass what formulize_headerActionPrintLabel
+ *                        returns, so the header's wording is short enough for the strip)
  * @param string $onclick - the javascript the old bottom-of-form button ran, unchanged
  * @param string $id - optional id, preserved from the markup this button replaces
  * @param string $extraClass - optional extra class(es) on the button
@@ -2118,14 +2153,15 @@ function addSubmitButton($form, $subButtonText, $go_back, $currentURL, $button_t
 		// are exactly what they were.
 		$ele_allowed = $printViewFields['elements_allowed'];
 		$form->addHeaderAction(formulize_headerActionButton(
-			'icon-print', $pv_text_temp, "javascript:PrintPop('".$ele_allowed."');", 'printbutton'));
+			'icon-print', formulize_headerActionPrintLabel($pv_text_temp),
+			"javascript:PrintPop('".$ele_allowed."');", 'printbutton'));
 		if ($printall) {																					// nmc 2007.03.24 - added
 			// The "all pages" variant only exists on multipage screens configured for it.
 			// A second, identical printer glyph would be ambiguous, so it carries a short
 			// "All" badge in addition to its own tooltip.
 			$form->addHeaderAction(formulize_headerActionButton(
 				'icon-print',
-				str_replace(_formulize_PRINTVIEW, $pv_text_temp, _formulize_PRINTALLVIEW),
+				formulize_headerActionPrintLabel($pv_text_temp, true),
 				"javascript:PrintAllPop();", 'printallbutton', 'fz-header-action--with-badge', false,
 				// guarded: only the english language file carries this constant
 				defined('_formulize_PRINTALLVIEW_BADGE') ? _formulize_PRINTALLVIEW_BADGE : 'All'));
@@ -2251,68 +2287,37 @@ function addOwnershipList($form, $groups, $member_handler, $gperm_handler, $fid,
 		$proxylist->setClass("formulize-office-use-only-start-hidden");
 	}
 
-	// Issue #151: the two toggle buttons live in the form screen's header strip rather
-	// than inline in the form body. They keep the officeUseOnlyToggle() onclick, the
-	// formulize-office-use-only-toggle class the toggle operates on, and the show/hide
-	// starting state - only the position and the presentation change. The Office Use Only
-	// content itself (the proxy/owner list above) stays where it is in the form body.
+	// PR #153 review: these two live in the form body, immediately above the proxy/owner
+	// list they reveal, and not in the screen's header strip. #151 moved them out there
+	// with the print controls; on reflection that put the control a long way from its
+	// effect - the person clicks a button in the header and the thing that changes is a
+	// field somewhere down the form, which they may not even have scrolled to. Keeping
+	// them adjacent to the field means the reveal happens right where they are looking.
 	//
-	// Locked padlock = the staff-only section is closed, click to open it; unlocked
-	// padlock = it is open, click to close it again. Both glyphs come from the
-	// formulize-icons webfont already used by the page-nav strip these join.
-	$officeUseOnlyButtons = formulize_headerActionButton(
-			'icon-lock', _formulize_SHOW." '"._formulize_OFFICE_USE_ONLY."'", "officeUseOnlyToggle();",
-			'formulize-office-use-only-show', 'formulize-office-use-only-toggle', ($startOfficeUseOnlyHidden == false))
-		."\n".formulize_headerActionButton(
-			'icon-lock-unlocked', _formulize_HIDE." '"._formulize_OFFICE_USE_ONLY."'", "officeUseOnlyToggle();",
-			'formulize-office-use-only-hide', 'formulize-office-use-only-toggle', ($startOfficeUseOnlyHidden == true));
-
-	// PR #153 review: the drawer gets these too, in the same place relative to its own
-	// chrome (the right hand end of its page strip). An elements-only render draws no
-	// header of its own - everything it emits goes inside the drawer's scrolling body and
-	// inside the posted <form> - so the markup cannot simply be placed here. It is
-	// published as metadata instead, exactly as the screen's form buttons and paging are,
-	// and drawer.js puts it in the drawer's strip. Same markup, same classes, same
-	// onclick, so the two surfaces cannot drift apart.
-	if($form instanceof formulize_elementsOnlyForm) {
-		formulize_registerElementsOnlyHeaderActions($officeUseOnlyButtons);
-	} else {
-		$form->addHeaderAction($officeUseOnlyButtons);
+	// That also settles the icon question: back in the form body these are ordinary form
+	// buttons, the same plain <input type=button> every other inline control in a form
+	// body is, so there is no glyph to choose and nothing that reads as a padlock. Only
+	// the position and the presentation ever changed - the officeUseOnlyToggle() onclick,
+	// the formulize-office-use-only-toggle class the toggle operates on, and the show/hide
+	// starting state are what they have always been.
+	$officeUseOnlyShow = new XoopsFormLabel("<input type='button' onclick='officeUseOnlyToggle();' value='"._formulize_SHOW." &#039;"._formulize_OFFICE_USE_ONLY."&#039;' />", "", 'office-use-only-show');
+	$officeUseOnlyShow->setClass("no-print");
+	$officeUseOnlyShow->setClass("formulize-office-use-only-toggle");
+	if($startOfficeUseOnlyHidden == false) {
+		$officeUseOnlyShow->setClass("formulize-office-use-only-start-hidden");
 	}
 
+	$officeUseOnlyHide = new XoopsFormLabel("<input type='button' onclick='officeUseOnlyToggle();' value='"._formulize_HIDE." &#039;"._formulize_OFFICE_USE_ONLY."&#039;' />", "", 'office-use-only-hide');
+	$officeUseOnlyHide->setClass("no-print");
+	$officeUseOnlyHide->setClass("formulize-office-use-only-toggle");
+	if($startOfficeUseOnlyHidden == true) {
+		$officeUseOnlyHide->setClass("formulize-office-use-only-start-hidden");
+	}
+
+	$form->addElement($officeUseOnlyShow);
+	$form->addElement($officeUseOnlyHide);
 	$form->addElement($proxylist);
 	return $form;
-}
-
-/**
- * Record the header-action markup of an elements-only render, for the host to place in
- * its own chrome (see formulize_elementsOnlyHeaderActionsJs). Only the first registration
- * of a request is kept: a drawer form renders its subforms elements-only too, and those
- * must not contribute a second set of controls for the entry being shown. The form the
- * request actually asked for is rendered first, so first-wins is the outer form.
- */
-function formulize_registerElementsOnlyHeaderActions($markup) {
-	if($markup AND !isset($GLOBALS['formulize_elementsOnlyHeaderActions'])) {
-		$GLOBALS['formulize_elementsOnlyHeaderActions'] = $markup;
-	}
-}
-
-/**
- * Publish the header actions recorded during an elements-only render, in the same
- * json-in-a-script-tag form as the screen's button and paging metadata. Returns "" when
- * the render produced none, in which case the host shows only its own controls.
- *
- * NB the class is deliberately not `fz-header-actions` - that is the class of the
- * container the host places this markup into, and it carries `display: inline-flex`,
- * which applied to a <script> would override the UA stylesheet's `display: none` and
- * print the raw json into the page.
- */
-function formulize_elementsOnlyHeaderActionsJs() {
-	if(empty($GLOBALS['formulize_elementsOnlyHeaderActions'])) {
-		return '';
-	}
-	return "<script type=\"application/json\" class=\"fz-header-actions-meta\">"
-		.json_encode(array('html' => $GLOBALS['formulize_elementsOnlyHeaderActions']))."</script>\n";
 }
 
 /**

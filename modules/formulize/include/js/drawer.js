@@ -350,11 +350,6 @@
     // decides for itself which buttons exist or what they say.
     var currentEntryButtons = null;
 
-    // fz-header-actions metadata: the ready-made markup for the header-strip controls the
-    // render produced, built server side by formulize_headerActionButton() - the very same
-    // function the full screen header's buttons come from.
-    var currentEntryHeaderActions = '';
-
     // Whether anything has been saved since this drawer session opened. A save that
     // leaves the drawer open still has to be reflected in the list behind it when the
     // drawer is eventually closed.
@@ -393,18 +388,6 @@
         var el = bodyEl.querySelector('script.fz-form-buttons');
         if (!el) { return null; }
         try { return JSON.parse(el.textContent); } catch (e) { return null; }
-    }
-
-    // Read the header-action markup the endpoint emits (the Show/Hide 'Office Use Only'
-    // pair, when the person may set entry ownership). Returns "" when the render produced
-    // none. The markup is built server side by the same function that builds the full
-    // screen header's buttons, so the drawer is not re-deriving a second set of controls -
-    // it is placing the same ones in its own strip.
-    function readHeaderActionsMeta() {
-        if (!bodyEl) { return ''; }
-        var el = bodyEl.querySelector('script.fz-header-actions-meta');
-        if (!el) { return ''; }
-        try { return JSON.parse(el.textContent).html || ''; } catch (e) { return ''; }
     }
 
     // Build an endpoint URL from frame params (+ optional page for multi-page forms).
@@ -514,7 +497,6 @@
                 window.formulizechanged = 0;
                 currentEntryNav = readNavMeta();
                 currentEntryButtons = readButtonMeta();
-                currentEntryHeaderActions = readHeaderActionsMeta();
                 var meta = readDrawerMeta();
                 if (meta && typeof meta.title === 'string') { titleEl.textContent = meta.title; }
                 if (meta && currentFrame) {
@@ -699,20 +681,18 @@
     // Draw the header-strip action buttons, at the right hand end of the strip - the same
     // placement the full screen form uses, which is what the review asked for.
     //
-    // Two sources, one appearance:
+    // The printable view is the only one. The drawer has always offered it, but from its
+    // footer, because full screen it used to live in the bottom button tray. Since issue
+    // #151 moved it into the header full screen, keeping it in the drawer's footer was the
+    // drift; it is built here instead, from the same fz-form-buttons metadata (which
+    // supplies both its label - already shortened server side for the strip - and the
+    // fields to post) and still opened by openPrintableView, which posts exactly what the
+    // full screen control posts.
     //
-    //   - The printable view. The drawer has always offered this, but from its footer,
-    //     because full screen it used to live in the bottom button tray. Since issue #151
-    //     moved it into the header full screen, keeping it in the drawer's footer is the
-    //     drift; it is built here instead, from the same fz-form-buttons metadata (which
-    //     supplies both its configured label and the fields to post) and still opened by
-    //     openPrintableView, which posts exactly what the full screen control posts.
-    //
-    //   - The Show/Hide 'Office Use Only' pair, injected verbatim as the server built it.
-    //     Their inline onclick calls window.officeUseOnlyToggle, which the fragment
-    //     defines, and which works on the `.formulize-office-use-only-toggle` class
-    //     globally - so the pair still swaps over, and still reveals the proxy/owner field
-    //     that stays behind in the form body, with the buttons sitting in the strip.
+    // The Show/Hide 'Office Use Only' pair used to be placed here too, from markup the
+    // endpoint published. PR #153's review moved it back into the form body beside the
+    // proxy/owner field it reveals, so that the person can see what their click did; it is
+    // now an ordinary element of the rendered fragment and nothing here has to place it.
     function renderHeaderActions() {
         if (!actionsEl) { return; }
         actionsEl.innerHTML = '';
@@ -726,14 +706,6 @@
         var buttons = currentEntryButtons;
         if (buttons && buttons.printableView && buttons.printAction) {
             actionsEl.appendChild(makeHeaderAction('icon-print', buttons.printableView, openPrintableView));
-        }
-
-        if (currentEntryHeaderActions) {
-            // a template, so the markup is parsed once and moved in with its attributes
-            // (including the inline onclick and the start-hidden inline style) intact
-            var holder = document.createElement('template');
-            holder.innerHTML = currentEntryHeaderActions;
-            actionsEl.appendChild(holder.content);
         }
 
         actionsEl.hidden = (actionsEl.childNodes.length === 0);
@@ -1091,7 +1063,6 @@
         closeDrawer();
         currentEntryNav = null;
         currentEntryButtons = null;
-        currentEntryHeaderActions = '';
         drawerStack = [];
         currentFrame = null;
         updateBackButton();
@@ -1336,7 +1307,6 @@
         if (footEl) { footEl.innerHTML = ''; }
         currentEntryNav = null;
         currentEntryButtons = null;
-        currentEntryHeaderActions = '';
         drawerStack = [];
         currentFrame = null;
         updateBackButton();
