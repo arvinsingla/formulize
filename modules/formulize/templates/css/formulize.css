@@ -1020,6 +1020,99 @@ div.formulize-office-use-only-start-hidden {
 		display: none;
 }
 
+/* ---------- Form screen header icon buttons (issue #151) ----------
+   The printable view control and the "Office Use Only" show/hide toggle used to
+   render at the bottom of the form body. They are now icon buttons in the form
+   screen's header: at the right hand end of the multipage page-nav strip
+   (#pageNavTable, which is sticky in both shipped themes) or, on a single page
+   form screen which has no strip, at the right hand end of the card header.
+
+   Base styling lives here so every theme gets a usable control; Lyris refines it
+   in themes/Lyris/css/style.css to match its pill tabs. The buttons carry the
+   `fz-` class prefix, which is how Lyris's blanket `button` rule knows to leave
+   a design-system component alone.
+
+   The hidden one of the Office Use Only pair starts with an inline
+   `display: none` rather than the `div.formulize-office-use-only-start-hidden`
+   utility above (that selector is scoped to div wrappers), and jQuery .toggle()
+   swaps the pair over exactly as before. */
+.fz-header-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	/* right-aligns the cluster when the header it joins is a flex row */
+	margin-left: auto;
+}
+
+/* Fallback wrapper, used only when a screen runs a customised toptemplate that
+   predates $headerActions and so never placed the strip itself. */
+.fz-header-actions-standalone {
+	display: flex;
+	justify-content: flex-end;
+}
+
+/* The card header becomes a row only when it actually has actions in it, so
+   headers without them are untouched. */
+.card__header:has(.fz-header-actions) {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+button.fz-header-action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	box-sizing: border-box;
+	width: auto;
+	min-width: 0;
+	height: 28px;
+	padding: 0 8px;
+	margin: 0;
+	font: inherit;
+	font-size: 14px;
+	font-weight: 500;
+	line-height: 1;
+	color: inherit;
+	background: none;
+	border: 1px solid transparent;
+	border-radius: 999px;
+	box-shadow: none;
+	cursor: pointer;
+	appearance: none;
+	-webkit-appearance: none;
+}
+
+button.fz-header-action:hover {
+	background: rgba(0, 0, 0, 0.06);
+	box-shadow: none;
+}
+
+button.fz-header-action:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 1px;
+}
+
+.fz-header-action__icon {
+	font-size: 15px;
+}
+
+.fz-header-action__badge {
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+}
+
+@media print {
+	.fz-header-actions,
+	.fz-header-actions-standalone {
+		display: none !important;
+	}
+}
+
 .subform-filter-search {
 	margin-bottom: 0.5em;
 	margin-top: 0.5em;

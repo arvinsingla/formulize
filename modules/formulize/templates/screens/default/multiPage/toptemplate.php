@@ -1,8 +1,15 @@
 <?php
 
-if($showTabs) {
+// The page-nav strip is also the form screen's header bar: the print and
+// "Office Use Only" icon buttons ($headerActions, issue #151) sit at its right
+// hand end, across from the page tabs, and inherit the strip's sticky
+// behaviour. The strip is therefore emitted whenever there is something to put
+// in it, not only when the screen is configured to show tabs.
+if($showTabs OR $headerActions) {
     print "
-    <div id='pageNavTable' class='pill-tabs'>
+    <div id='pageNavTable' class='pill-tabs'>";
+    if($showTabs) {
+        print "
         <a href='#' this-page='".($totalPages+1)."' class='icon-arrow-backward pill-tabs__item navtab'> $saveAndLeave</a>";
         foreach($pageTitles as $i=>$title) {
             $activeClass = $i == $currentPage ? "pill-tabs__item--active" : "";
@@ -10,8 +17,9 @@ if($showTabs) {
             print "
             <a href='' class='pill-tabs__item navtab $activeClass' $thisPage>$title</a>";
         }
-
-        print"
+    }
+    print $headerActions;
+    print"
     </div>";
 }
 

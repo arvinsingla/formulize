@@ -366,6 +366,9 @@ define("_formulize_DEL_ENTRIES", "You are about to delete the selected entries! 
 
 define("_formulize_PRINTVIEW", "Printable Version");
 define("_formulize_PRINTALLVIEW", "Printable Version - All Pages"); // nmc 2007.03.24 - added
+// Short badge shown beside the printer glyph of the "all pages" header icon button, so it
+// is distinguishable from the single-page one at a glance (issue #151).
+define("_formulize_PRINTALLVIEW_BADGE", "All");
 
 // constants related to the new display entries functions...
 

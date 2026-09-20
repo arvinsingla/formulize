@@ -77,6 +77,15 @@ class formulize_themeForm extends XoopsThemeForm {
     private $tokenName;
     private $tokenVal;
 
+    // Icon buttons that belong in the form screen's header strip (top right, across from
+    // the page tabs) rather than at the bottom of the form body - issue #151. Populated
+    // while the form is being built (addSubmitButton, addOwnershipList) and handed to the
+    // toptemplate as $headerActions when the form renders, which is after every element
+    // has been added. Elements-only renders never fill this: they draw no button tray at
+    // all and keep the Office Use Only toggle as an ordinary element, because their host
+    // (the right slide-out drawer) draws its own chrome and has no header strip.
+    private $headerActions = array();
+
 
     // $screen is the screen being rendered, either a multipage or a single page form screen - multipage screen is passed through when rendering happens
     function __construct($title, $name, $action, $method = "post", $addtoken = false, $frid = 0, $screen = null) {
@@ -101,6 +110,27 @@ class formulize_themeForm extends XoopsThemeForm {
 				$class .= $class ? ' formulize-text-for-display' : 'formulize-text-for-display';
         $ibContents = $extra."<<||>>".$name."<<||>>".$element_handle."<<||>>".$class; // can only assign strings or real element objects with addElement, not arrays
         $this->addElement($ibContents);
+    }
+
+    /**
+     * Add an icon button to the form screen's header strip (issue #151).
+     * $markup is the complete <button> markup, built by formulize_headerActionButton().
+     */
+    public function addHeaderAction($markup) {
+        if($markup) {
+            $this->headerActions[] = $markup;
+        }
+    }
+
+    /**
+     * The header strip's markup, or "" when this form has no header actions.
+     * Consumed by the screen toptemplates as the $headerActions variable.
+     */
+    public function getHeaderActions() {
+        if(count($this->headerActions) == 0) {
+            return "";
+        }
+        return "<div class='fz-header-actions no-print'>".implode("\n", $this->headerActions)."</div>";
     }
 
     /**
@@ -146,7 +176,16 @@ class formulize_themeForm extends XoopsThemeForm {
 
         // top template
         $template = $this->getTemplate('toptemplate');
-        $ret .= $this->processTemplate($template, array('formTitle'=>$this->getTitle()));
+        $headerActions = $this->getHeaderActions();
+        $topOutput = $this->processTemplate($template, array('formTitle'=>$this->getTitle(), 'headerActions'=>$headerActions));
+        // Safety net for a screen running a customised toptemplate stored in the database:
+        // it predates $headerActions and so would silently drop the print / Office Use Only
+        // controls altogether. If the template did not place the strip, place it ourselves
+        // above whatever the template produced, so the controls always exist somewhere.
+        if($headerActions AND strpos($topOutput, "fz-header-actions") === false) {
+            $topOutput = "<div class='fz-header-actions-standalone'>".$headerActions."</div>".$topOutput;
+        }
+        $ret .= $topOutput;
 
         // render elements
 		$hidden = '';
@@ -627,7 +666,9 @@ class formulize_elementsOnlyForm extends formulize_themeForm {
 
         $ret = '';
         if($wrapperTop) {
-            $ret = $this->processTemplate($wrapperTop, array('formTitle'=>$this->getTitle()));
+            // headerActions is always empty here (elements-only never populates it, see the
+            // property's note) but is passed so a shared toptemplate can reference it safely.
+            $ret = $this->processTemplate($wrapperTop, array('formTitle'=>$this->getTitle(), 'headerActions'=>$this->getHeaderActions()));
         } elseif($elementsInTable) {
             // major league hack to open table if it seems the top template would have opened a table for the element containers
             $ret = '<table>';
@@ -1982,6 +2023,40 @@ function formulize_recordElementsOnlyButtonMeta($go_back, $currentURL, $button_t
 	formulize_registerElementsOnlyButtonMeta(formulize_elementsOnlyButtonMetaKey($screen, $fid), $meta);
 }
 
+/**
+ * Build one icon button for the form screen's header strip (issue #151).
+ *
+ * Icon-only, so the label lives in title (tooltip) and aria-label (assistive tech) -
+ * the codebase has no tooltip component of its own, so the native title attribute is
+ * the pattern here. The glyph comes from the formulize-icons webfont via an .icon-*
+ * class on an aria-hidden span, which is the mechanism the page-nav strip these
+ * buttons join already uses (the "save and leave" tab is .icon-arrow-backward). The
+ * recommendation in PR #152 for a standardised emitter is not implemented, so this
+ * deliberately reuses the nearest existing mechanism rather than adding a new one.
+ *
+ * @param string $iconClass - the formulize-icons class, e.g. 'icon-print'
+ * @param string $label - the accessible name / tooltip text
+ * @param string $onclick - the javascript the old bottom-of-form button ran, unchanged
+ * @param string $id - optional id, preserved from the markup this button replaces
+ * @param string $extraClass - optional extra class(es) on the button
+ * @param bool $startHidden - render with display:none (jQuery .toggle() still works on it)
+ * @param string $badge - optional short text shown beside the glyph
+ * @return string
+ */
+function formulize_headerActionButton($iconClass, $label, $onclick, $id = '', $extraClass = '', $startHidden = false, $badge = '') {
+	$label = htmlspecialchars(trans($label), ENT_QUOTES);
+	$classes = trim('fz-header-action '.$extraClass);
+	return "<button type='button'"
+		.($id ? " id='".htmlspecialchars($id, ENT_QUOTES)."'" : "")
+		." class='".$classes."'"
+		.($startHidden ? " style='display: none;'" : "")
+		." title='".$label."' aria-label='".$label."'"
+		." onclick=\"".$onclick."\">"
+		."<span class='".$iconClass." fz-header-action__icon' aria-hidden='true'></span>"
+		.($badge ? "<span class='fz-header-action__badge' aria-hidden='true'>".htmlspecialchars($badge, ENT_QUOTES)."</span>" : "")
+		."</button>";
+}
+
 // add the submit button to a form
 function addSubmitButton($form, $subButtonText, $go_back, $currentURL, $button_text, $settings, $entry, $fids, $formframe, $mainform, $cur_entry, $elements_allowed="", $allDoneOverride=false, $printall=0, $screen=null) { //nmc 2007.03.24 - added $printall
 
@@ -2003,7 +2078,6 @@ function addSubmitButton($form, $subButtonText, $go_back, $currentURL, $button_t
 	// drawer gets, from the same function, so the two can never disagree
 	$buttons = formulize_resolveFormButtons($button_text, $go_back, $fid, $uid, $entry, $allDoneOverride, $printall, $currentURL, $subButtonText);
 
-	$rendered_buttons = "";
 	if(isset($buttons['printableview'])) {
 
 		$pv_text_temp = $buttons['printableview'];
@@ -2022,19 +2096,27 @@ function addSubmitButton($form, $subButtonText, $go_back, $currentURL, $button_t
 		print "</form>";
 		//added by Cory Aug 27, 2005 to make forms printable
 
-		$printbutton = new XoopsFormButton('', 'printbutton',  $pv_text_temp, 'button');
+		// Issue #151: the printable view control(s) used to be rendered into this tray's
+		// caption, which put them at the bottom of the form body. They are now icon buttons
+		// in the form screen's header strip instead. Only the presentation and the position
+		// changed - the javascript each one runs, and the hidden printview form it submits,
+		// are exactly what they were.
 		$ele_allowed = $printViewFields['elements_allowed'];
-		$printbutton->setExtra("onclick='javascript:PrintPop(\"$ele_allowed\");'");
-		$rendered_buttons = $printbutton->render(); // nmc 2007.03.24 - added
+		$form->addHeaderAction(formulize_headerActionButton(
+			'icon-print', $pv_text_temp, "javascript:PrintPop('".$ele_allowed."');", 'printbutton'));
 		if ($printall) {																					// nmc 2007.03.24 - added
-			$printallbutton = new XoopsFormButton('', 'printallbutton', str_replace(_formulize_PRINTVIEW, $pv_text_temp, _formulize_PRINTALLVIEW), 'button');	// nmc 2007.03.24 - added
-			$printallbutton->setExtra("onclick='javascript:PrintAllPop();'");								// nmc 2007.03.24 - added
-			$rendered_buttons .= "&nbsp;&nbsp;&nbsp;" . $printallbutton->render();							// nmc 2007.03.24 - added
+			// The "all pages" variant only exists on multipage screens configured for it.
+			// A second, identical printer glyph would be ambiguous, so it carries a short
+			// "All" badge in addition to its own tooltip.
+			$form->addHeaderAction(formulize_headerActionButton(
+				'icon-print',
+				str_replace(_formulize_PRINTVIEW, $pv_text_temp, _formulize_PRINTALLVIEW),
+				"javascript:PrintAllPop();", 'printallbutton', 'fz-header-action--with-badge', false,
+				// guarded: only the english language file carries this constant
+				defined('_formulize_PRINTALLVIEW_BADGE') ? _formulize_PRINTALLVIEW_BADGE : 'All'));
 			}
-		$buttontray = new XoopsFormElementTray($rendered_buttons, "", 'button-controls'); // nmc 2007.03.24 - amended [nb: FormElementTray 'caption' is actually either 1 or 2 buttons]
-	} else {
-		$buttontray = new XoopsFormElementTray("", "", 'button-controls');
 	}
+	$buttontray = new XoopsFormElementTray("", "", 'button-controls');
 	$buttontray->setClass("no-print");
 
 	if(isset($buttons['save'])) {
@@ -2056,10 +2138,13 @@ function addSubmitButton($form, $subButtonText, $go_back, $currentURL, $button_t
 		$buttontray->addElement($donebutton);
 	}
 
-	// formulize_displayingMultipageScreen is set in formdisplaypages to indicate we're displaying a multipage form
-	global $formulize_displayingMultipageScreen;
+	// Issue #151: the tray is added only when it actually holds buttons. It used to be
+	// added on a multipage screen purely to carry the printable view control in its
+	// caption; that control is now a header icon button, so a multipage screen (whose
+	// save/done controls live in #multipage-controls) would otherwise be left with an
+	// empty tray row at the bottom of the form body.
 	$trayElements = $buttontray->getElements();
-	if(count((array) $trayElements) > 0 OR ($rendered_buttons AND $formulize_displayingMultipageScreen)) {
+	if(count((array) $trayElements) > 0) {
 		$form->addElement($buttontray);
 	}
 	return $form;
@@ -2149,6 +2234,28 @@ function addOwnershipList($form, $groups, $member_handler, $gperm_handler, $fid,
 	$proxylist->setExtra(" onchange='javascript:formulizechanged=1' ");
 	if($startOfficeUseOnlyHidden == true) {
 		$proxylist->setClass("formulize-office-use-only-start-hidden");
+	}
+
+	// Issue #151: on a full form screen the two toggle buttons move to the header strip as
+	// icon buttons. They keep the officeUseOnlyToggle() onclick, the
+	// formulize-office-use-only-toggle class the toggle operates on, and the show/hide
+	// starting state - only the position and the presentation change. The Office Use Only
+	// content itself (the proxy/owner list above) stays where it is in the form body.
+	//
+	// An elements-only render has no header strip (its host, the right slide-out drawer,
+	// draws its own chrome), so it keeps the original inline buttons exactly as before.
+	if(!($form instanceof formulize_elementsOnlyForm)) {
+		// Locked padlock = the staff-only section is closed, click to open it;
+		// unlocked padlock = it is open, click to close it again. Both glyphs come from
+		// the formulize-icons webfont already used by the page-nav strip these join.
+		$form->addHeaderAction(formulize_headerActionButton(
+			'icon-lock', _formulize_SHOW." '"._formulize_OFFICE_USE_ONLY."'", "officeUseOnlyToggle();",
+			'formulize-office-use-only-show', 'formulize-office-use-only-toggle', ($startOfficeUseOnlyHidden == false)));
+		$form->addHeaderAction(formulize_headerActionButton(
+			'icon-lock-unlocked', _formulize_HIDE." '"._formulize_OFFICE_USE_ONLY."'", "officeUseOnlyToggle();",
+			'formulize-office-use-only-hide', 'formulize-office-use-only-toggle', ($startOfficeUseOnlyHidden == true)));
+		$form->addElement($proxylist);
+		return $form;
 	}
 
 	$officeUseOnlyShow = new XoopsFormLabel("<input type='button' onclick='officeUseOnlyToggle();' value='"._formulize_SHOW." &#039;"._formulize_OFFICE_USE_ONLY."&#039;' />", "", 'office-use-only-show');

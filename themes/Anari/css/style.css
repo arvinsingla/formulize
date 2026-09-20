@@ -1164,6 +1164,18 @@ table.formulize-subform-table td {
 	z-index: 10;
 }
 
+/* ---------- Form screen header icon buttons (issue #151) ----------
+   The print / "Office Use Only" icon buttons now sit at the right hand end of
+   the sticky page-nav strip. Anari's `.pill-tabs` is an inline-block strip
+   rather than a flex row, so the base stylesheet's `margin-left: auto` does not
+   right-align the cluster here - float it instead. Emitted last in the strip,
+   so it floats onto the same line as the tabs.
+   Base sizing lives in modules/formulize/templates/css/formulize.css. */
+#pageNavTable .fz-header-actions {
+  float: right;
+  padding-right: 10px;
+}
+
 .form-heading {
   font-weight: 400;
   font-size: 0.9rem;

@@ -1,5 +1,10 @@
 <?php
 
+// A single page form screen has no page-nav strip, so the print and "Office Use
+// Only" icon buttons ($headerActions, issue #151) go at the right hand end of the
+// card header, across from the form title. Nothing is sticky on this kind of
+// screen, so unlike the multipage strip they scroll with the form.
+
 // Lyris form screen — adopts the design-system .fz-* form primitives.
 // The container carries the label-mode modifier so individual fields don't
 // hardcode it. Density is deliberately left at the design system's default
@@ -14,6 +19,7 @@ print "
 
 <div class='card__header'>
 	<h3 class='card__title'>".$formTitle."</h3>
+	".$headerActions."
 </div>
 
 <div class='card__body'>
