@@ -111,7 +111,7 @@
 
     var drawer = null, scrim = null, titleEl = null, bodyEl = null, aiBodyEl = null,
         footEl = null, backBtn = null, closeBtn = null, resizeHandle = null, tabsEl = null,
-        savingEl = null;
+        stripEl = null, actionsEl = null, savingEl = null;
 
     var ICON_BACK  = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>';
     var ICON_CLOSE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
@@ -143,13 +143,22 @@
                 '<div class="formulize-drawer__spacer"></div>' +
                 '<button type="button" class="formulize-drawer__btn formulize-drawer__btn--ghost formulize-drawer__btn--icon formulize-drawer__close" aria-label="' + escapeAttr(S().close) + '">' + ICON_CLOSE + '</button>' +
             '</div>' +
-            // The multi-page tab strip, mirroring the full screen form's tabs. It lives
-            // here rather than in a theme's screen template because it is chrome around
-            // the form, not part of it: the templates render inside __body and inside the
-            // posted <form>, so tabs emitted there would scroll away with the fields and
-            // be submitted with them. Built by renderPageTabs; hidden when the screen is
-            // not configured for tabs, or the form has only one page.
-            '<nav class="formulize-drawer__tabs" aria-label="' + escapeAttr(S().formPages) + '" hidden></nav>' +
+            // The page strip, mirroring the full screen form's `#pageNavTable.pill-tabs`:
+            // the page tabs at its left hand end, the header action buttons (printable
+            // view, Show/Hide 'Office Use Only') at its right. It lives here rather than
+            // in a theme's screen template because it is chrome around the form, not part
+            // of it: the templates render inside __body and inside the posted <form>, so
+            // anything emitted there would scroll away with the fields and be submitted
+            // with them.
+            //
+            // The strip shows whenever it has something to carry - tabs, actions or both -
+            // which is the same rule the full screen strip follows since issue #151, so a
+            // single page form or a screen configured without tabs still gets its print
+            // and Office Use Only controls in the same place.
+            '<div class="formulize-drawer__strip" hidden>' +
+                '<nav class="formulize-drawer__tabs" aria-label="' + escapeAttr(S().formPages) + '" hidden></nav>' +
+                '<div class="fz-header-actions no-print" hidden></div>' +
+            '</div>' +
             '<div class="formulize-drawer__body"></div>' +
             // The AI assistant gets its own body so viewing an entry doesn't destroy
             // the conversation: both panels persist, and the drawer shows one or the other.
@@ -168,7 +177,9 @@
         bodyEl       = drawer.querySelector('.formulize-drawer__body:not(.formulize-drawer__body--ai)');
         aiBodyEl     = drawer.querySelector('.formulize-drawer__body--ai');
         footEl       = drawer.querySelector('.formulize-drawer__foot');
+        stripEl      = drawer.querySelector('.formulize-drawer__strip');
         tabsEl       = drawer.querySelector('.formulize-drawer__tabs');
+        actionsEl    = drawer.querySelector('.formulize-drawer__strip .fz-header-actions');
         backBtn      = drawer.querySelector('.formulize-drawer__back');
         closeBtn     = drawer.querySelector('.formulize-drawer__close');
         resizeHandle = drawer.querySelector('.formulize-drawer__resize-handle');
@@ -280,7 +291,12 @@
         drawerMode = mode;
         if (bodyEl)   { bodyEl.hidden   = (mode === 'ai'); }
         if (aiBodyEl) { aiBodyEl.hidden = (mode !== 'ai'); }
-        if (tabsEl && mode === 'ai') { tabsEl.hidden = true; } // the AI panel has no pages
+        // the AI panel has no pages, and no form to print or unlock
+        if (mode === 'ai') {
+            if (tabsEl)    { tabsEl.hidden = true; }
+            if (actionsEl) { actionsEl.hidden = true; actionsEl.innerHTML = ''; }
+            syncStripVisibility();
+        }
 
         applyStoredDrawerWidth(); // each mode has its own remembered width
     }
@@ -299,7 +315,11 @@
         titleEl.textContent = opts.title || '';
         bodyEl.innerHTML = opts.html || '';
         footEl.innerHTML = opts.footerHtml || '';
-        if (tabsEl) { tabsEl.hidden = true; } // static content has no paging metadata
+        // static content has no paging or header-action metadata; the entry loader fills
+        // both in immediately afterwards when this is the start of an entry session
+        if (tabsEl)    { tabsEl.hidden = true; }
+        if (actionsEl) { actionsEl.hidden = true; actionsEl.innerHTML = ''; }
+        syncStripVisibility();
         revealDrawer();
     }
 
@@ -329,6 +349,11 @@
     // the same code that builds the full screen form's button tray, so the drawer never
     // decides for itself which buttons exist or what they say.
     var currentEntryButtons = null;
+
+    // fz-header-actions metadata: the ready-made markup for the header-strip controls the
+    // render produced, built server side by formulize_headerActionButton() - the very same
+    // function the full screen header's buttons come from.
+    var currentEntryHeaderActions = '';
 
     // Whether anything has been saved since this drawer session opened. A save that
     // leaves the drawer open still has to be reflected in the list behind it when the
@@ -368,6 +393,18 @@
         var el = bodyEl.querySelector('script.fz-form-buttons');
         if (!el) { return null; }
         try { return JSON.parse(el.textContent); } catch (e) { return null; }
+    }
+
+    // Read the header-action markup the endpoint emits (the Show/Hide 'Office Use Only'
+    // pair, when the person may set entry ownership). Returns "" when the render produced
+    // none. The markup is built server side by the same function that builds the full
+    // screen header's buttons, so the drawer is not re-deriving a second set of controls -
+    // it is placing the same ones in its own strip.
+    function readHeaderActionsMeta() {
+        if (!bodyEl) { return ''; }
+        var el = bodyEl.querySelector('script.fz-header-actions-meta');
+        if (!el) { return ''; }
+        try { return JSON.parse(el.textContent).html || ''; } catch (e) { return ''; }
     }
 
     // Build an endpoint URL from frame params (+ optional page for multi-page forms).
@@ -477,6 +514,7 @@
                 window.formulizechanged = 0;
                 currentEntryNav = readNavMeta();
                 currentEntryButtons = readButtonMeta();
+                currentEntryHeaderActions = readHeaderActionsMeta();
                 var meta = readDrawerMeta();
                 if (meta && typeof meta.title === 'string') { titleEl.textContent = meta.title; }
                 if (meta && currentFrame) {
@@ -485,6 +523,7 @@
                     if (meta.entryId && meta.entryId !== 'new') { currentFrame.params.entryId = meta.entryId; }
                 }
                 if (currentFrame) { currentFrame.page = currentEntryNav ? currentEntryNav.currentPage : 0; }
+                renderHeaderActions();
                 renderPageTabs();
                 renderEntryFooter();
                 updateBackButton();
@@ -608,9 +647,11 @@
         var nav = currentEntryNav;
         if (drawerMode === 'ai' || !drawerTabsVisible(nav)) {
             tabsEl.hidden = true;
+            syncStripVisibility();
             return;
         }
         tabsEl.hidden = false;
+        syncStripVisibility();
 
         var activeTab = null;
         nav.pages.forEach(function (page) {
@@ -642,6 +683,86 @@
             try { activeTab.scrollIntoView({ block: 'nearest', inline: 'center' }); }
             catch (e) { activeTab.scrollIntoView(false); }
         }
+    }
+
+    // The strip carries the tabs and the header actions. Either alone is enough reason to
+    // draw it; with neither it collapses entirely, so a plain single page form in the
+    // drawer looks exactly as it did before any of this existed. Same rule the full screen
+    // strip follows (`if($showTabs OR $headerActions)` in the multiPage toptemplates).
+    function syncStripVisibility() {
+        if (!stripEl) { return; }
+        var hasTabs    = !!(tabsEl    && !tabsEl.hidden);
+        var hasActions = !!(actionsEl && !actionsEl.hidden);
+        stripEl.hidden = !(hasTabs || hasActions);
+    }
+
+    // Draw the header-strip action buttons, at the right hand end of the strip - the same
+    // placement the full screen form uses, which is what the review asked for.
+    //
+    // Two sources, one appearance:
+    //
+    //   - The printable view. The drawer has always offered this, but from its footer,
+    //     because full screen it used to live in the bottom button tray. Since issue #151
+    //     moved it into the header full screen, keeping it in the drawer's footer is the
+    //     drift; it is built here instead, from the same fz-form-buttons metadata (which
+    //     supplies both its configured label and the fields to post) and still opened by
+    //     openPrintableView, which posts exactly what the full screen control posts.
+    //
+    //   - The Show/Hide 'Office Use Only' pair, injected verbatim as the server built it.
+    //     Their inline onclick calls window.officeUseOnlyToggle, which the fragment
+    //     defines, and which works on the `.formulize-office-use-only-toggle` class
+    //     globally - so the pair still swaps over, and still reveals the proxy/owner field
+    //     that stays behind in the form body, with the buttons sitting in the strip.
+    function renderHeaderActions() {
+        if (!actionsEl) { return; }
+        actionsEl.innerHTML = '';
+
+        if (drawerMode === 'ai') {
+            actionsEl.hidden = true;
+            syncStripVisibility();
+            return;
+        }
+
+        var buttons = currentEntryButtons;
+        if (buttons && buttons.printableView && buttons.printAction) {
+            actionsEl.appendChild(makeHeaderAction('icon-print', buttons.printableView, openPrintableView));
+        }
+
+        if (currentEntryHeaderActions) {
+            // a template, so the markup is parsed once and moved in with its attributes
+            // (including the inline onclick and the start-hidden inline style) intact
+            var holder = document.createElement('template');
+            holder.innerHTML = currentEntryHeaderActions;
+            actionsEl.appendChild(holder.content);
+        }
+
+        actionsEl.hidden = (actionsEl.childNodes.length === 0);
+        syncStripVisibility();
+    }
+
+    // One header-strip button, built as the same element the server builds full screen:
+    // `<button class="fz-header-action">` with an icon span and an aria-hidden label span,
+    // the label carried on aria-label/title so the accessible name is stable whether or
+    // not the visible text is collapsed away at narrow widths. Everything visual then
+    // comes from the `.fz-header-action` rules the themes already apply to the full screen
+    // strip - the drawer has no button skin of its own to get out of step.
+    function makeHeaderAction(iconClass, label, onClick) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'fz-header-action';
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+        var icon = document.createElement('span');
+        icon.className = iconClass + ' fz-header-action__icon';
+        icon.setAttribute('aria-hidden', 'true');
+        var text = document.createElement('span');
+        text.className = 'fz-header-action__label';
+        text.setAttribute('aria-hidden', 'true');
+        text.textContent = label;
+        btn.appendChild(icon);
+        btn.appendChild(text);
+        btn.addEventListener('click', onClick);
+        return btn;
     }
 
     // A tab click is a page move like any other, but it needs to say so when it is
@@ -704,12 +825,9 @@
         // $savePageButton $closePageButton $nextPageButton`, so: page meta, then
         // previous, save, close, next. Following that here is what makes the two
         // surfaces read the same, rather than the drawer's old close/save-and-close/
-        // save/next ordering. The printable view button has no slot in that bar (full
-        // screen puts it in its own #formulize-button-controls tray), so it leads.
-        if (buttons.printableView && buttons.printAction) {
-            footEl.appendChild(makeButton(buttons.printableView, 'printbutton', openPrintableView));
-        }
-
+        // save/next ordering. The printable view button is not in this bar at all: full
+        // screen it lives in the header strip (issue #151), so the drawer puts it in the
+        // header strip too - see renderHeaderActions.
         var navButtons = drawerShowsNavButtons(nav);
         // The screen's button set for the page being shown, computed server side by
         // formulize_multipageButtonSet() — the very same call the full screen action bar
@@ -973,6 +1091,7 @@
         closeDrawer();
         currentEntryNav = null;
         currentEntryButtons = null;
+        currentEntryHeaderActions = '';
         drawerStack = [];
         currentFrame = null;
         updateBackButton();
@@ -1217,6 +1336,7 @@
         if (footEl) { footEl.innerHTML = ''; }
         currentEntryNav = null;
         currentEntryButtons = null;
+        currentEntryHeaderActions = '';
         drawerStack = [];
         currentFrame = null;
         updateBackButton();

@@ -1039,6 +1039,11 @@ div.formulize-office-use-only-start-hidden {
 .fz-header-actions {
 	display: inline-flex;
 	align-items: center;
+	/* the buttons carry visible labels from 768px up, so the cluster has to be able
+	   to break onto a second line rather than push the strip into a horizontal
+	   scroll - the tabs beside it wrap for the same reason */
+	flex-wrap: wrap;
+	justify-content: flex-end;
 	gap: 4px;
 	/* right-aligns the cluster when the header it joins is a flex row */
 	margin-left: auto;
@@ -1097,6 +1102,17 @@ button.fz-header-action:focus-visible {
 
 .fz-header-action__icon {
 	font-size: 15px;
+	flex: 0 0 auto;
+}
+
+/* The visible label, shown beside the glyph from the 768px breakpoint up (PR #153
+   review: icon-only read as too small on a desktop screen). It never wraps - the
+   strip wraps the whole button onto the next line instead, which is the behaviour
+   the tabs beside it already have. aria-hidden in the markup, so this text never
+   doubles up the button's accessible name, which stays the aria-label at every
+   width. */
+.fz-header-action__label {
+	white-space: nowrap;
 }
 
 .fz-header-action__badge {
@@ -1104,6 +1120,29 @@ button.fz-header-action:focus-visible {
 	font-weight: 600;
 	letter-spacing: 0.02em;
 	text-transform: uppercase;
+}
+
+/* The badge disambiguates two otherwise identical glyphs, so it is only needed
+   while the labels are collapsed away; with the label showing it would just repeat
+   the end of it. */
+.fz-header-action__badge {
+	display: none;
+}
+
+/* Below the breakpoint the whole set collapses to icons, as the review asked: the
+   label goes, the badge comes back, and the button becomes square-ish so a row of
+   them costs as little of a phone's width as possible. 768px is the one breakpoint
+   the themes use (themes/Lyris/css/style.css, themes/Anari/css/style.css). */
+@media (max-width: 768px) {
+	.fz-header-action__label {
+		display: none;
+	}
+	.fz-header-action__badge {
+		display: inline;
+	}
+	button.fz-header-action {
+		padding: 0 6px;
+	}
 }
 
 @media print {
@@ -1200,7 +1239,10 @@ button.formulize-ai-copy-btn:active {
          <div class="formulize-drawer__spacer">
          <button class="formulize-drawer__btn ... formulize-drawer__close">
        </div>
-       <nav class="formulize-drawer__tabs">              (multipage page tabs)
+       <div class="formulize-drawer__strip">             (the drawer's page-nav strip)
+         <nav class="formulize-drawer__tabs">            (multipage page tabs)
+         <div class="fz-header-actions">                 (print / Office Use Only)
+       </div>
        <div class="formulize-drawer__body">              (the entry form)
        <div class="formulize-drawer__body--ai">          (the AI assistant)
        <div class="formulize-drawer__foot">              (the screen's form buttons, paging)
@@ -1338,7 +1380,13 @@ button.formulize-ai-copy-btn:active {
    at the cost of some vertical space on a screen with many pages. The scrolling
    variant is kept immediately below, switched off, so going back is a one-line
    change. */
-.formulize-drawer__tabs {
+/* The strip is the drawer's counterpart of the full screen form's
+   `#pageNavTable.pill-tabs`: page tabs at the left hand end, the header action
+   buttons (printable view, Show/Hide 'Office Use Only') at the right, which is the
+   placement the PR #153 review asked the drawer to match. It owns the gutter and
+   the rule beneath, so the row reads as one band whether it is carrying tabs, the
+   actions, or both; either child hides on its own without leaving a gap. */
+.formulize-drawer__strip {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
@@ -1346,6 +1394,17 @@ button.formulize-ai-copy-btn:active {
 	padding: 8px var(--formulize-drawer-pad-x);
 	border-bottom: 1px solid var(--formulize-drawer-border);
 	flex-shrink: 0;
+}
+
+.formulize-drawer__tabs {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	/* may shrink below the intrinsic width of its tabs, so a long set of page titles
+	   wraps within the tab group rather than shoving the actions off the strip */
+	min-width: 0;
+	flex-shrink: 1;
 }
 
 .formulize-drawer__tab {
@@ -1558,7 +1617,7 @@ button.formulize-ai-copy-btn:active {
 }
 
 .formulize-drawer--saving .formulize-drawer__foot,
-.formulize-drawer--saving .formulize-drawer__tabs {
+.formulize-drawer--saving .formulize-drawer__strip {
 	opacity: 0.5;
 	pointer-events: none;
 }

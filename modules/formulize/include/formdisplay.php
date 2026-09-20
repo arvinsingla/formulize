@@ -81,9 +81,12 @@ class formulize_themeForm extends XoopsThemeForm {
     // the page tabs) rather than at the bottom of the form body - issue #151. Populated
     // while the form is being built (addSubmitButton, addOwnershipList) and handed to the
     // toptemplate as $headerActions when the form renders, which is after every element
-    // has been added. Elements-only renders never fill this: they draw no button tray at
-    // all and keep the Office Use Only toggle as an ordinary element, because their host
-    // (the right slide-out drawer) draws its own chrome and has no header strip.
+    // has been added. Elements-only renders never fill this - not because they have no
+    // header actions (since PR #153's review they have the same ones) but because
+    // everything they emit lands inside the host's scrolling body and inside the posted
+    // <form>, which is the wrong place for chrome. Those renders publish the same markup
+    // as metadata instead (formulize_registerElementsOnlyHeaderActions), and the host -
+    // the right slide-out drawer - places it in its own strip.
     private $headerActions = array();
 
 
@@ -666,8 +669,9 @@ class formulize_elementsOnlyForm extends formulize_themeForm {
 
         $ret = '';
         if($wrapperTop) {
-            // headerActions is always empty here (elements-only never populates it, see the
-            // property's note) but is passed so a shared toptemplate can reference it safely.
+            // headerActions is always empty here (elements-only publishes its header actions
+            // as metadata for the host to place instead, see the property's note) but is
+            // passed so a shared toptemplate can reference it safely.
             $ret = $this->processTemplate($wrapperTop, array('formTitle'=>$this->getTitle(), 'headerActions'=>$this->getHeaderActions()));
         } elseif($elementsInTable) {
             // major league hack to open table if it seems the top template would have opened a table for the element containers
@@ -2024,23 +2028,33 @@ function formulize_recordElementsOnlyButtonMeta($go_back, $currentURL, $button_t
 }
 
 /**
- * Build one icon button for the form screen's header strip (issue #151).
+ * Build one button for the form screen's header strip (issue #151).
  *
- * Icon-only, so the label lives in title (tooltip) and aria-label (assistive tech) -
- * the codebase has no tooltip component of its own, so the native title attribute is
- * the pattern here. The glyph comes from the formulize-icons webfont via an .icon-*
- * class on an aria-hidden span, which is the mechanism the page-nav strip these
- * buttons join already uses (the "save and leave" tab is .icon-arrow-backward). The
+ * Icon plus visible text at desktop widths, collapsing to the icon alone below the
+ * 768px breakpoint the rest of the UI uses (PR #153 review: the icon-only buttons
+ * read as too small on a desktop screen). The visible label is the same string the
+ * button the control replaced carried, and is aria-hidden so the accessible name is
+ * only ever the aria-label - that keeps the name stable at both widths, and keeps
+ * the existing e2e assertion (getByRole('button', {name: 'Printable Version'}))
+ * resolving exactly as it did. title is still set, so the tooltip carries the full
+ * label when the text is collapsed away; the codebase has no tooltip component of
+ * its own, so the native attribute remains the pattern here.
+ *
+ * The glyph comes from the formulize-icons webfont via an .icon-* class on an
+ * aria-hidden span, which is the mechanism the page-nav strip these buttons join
+ * already uses (the "save and leave" tab is .icon-arrow-backward). The
  * recommendation in PR #152 for a standardised emitter is not implemented, so this
  * deliberately reuses the nearest existing mechanism rather than adding a new one.
  *
  * @param string $iconClass - the formulize-icons class, e.g. 'icon-print'
- * @param string $label - the accessible name / tooltip text
+ * @param string $label - the accessible name / tooltip text / visible desktop text
  * @param string $onclick - the javascript the old bottom-of-form button ran, unchanged
  * @param string $id - optional id, preserved from the markup this button replaces
  * @param string $extraClass - optional extra class(es) on the button
  * @param bool $startHidden - render with display:none (jQuery .toggle() still works on it)
- * @param string $badge - optional short text shown beside the glyph
+ * @param string $badge - optional short text shown beside the glyph, only when the
+ *                        visible label is collapsed away (otherwise the label already
+ *                        disambiguates the button and the badge would repeat it)
  * @return string
  */
 function formulize_headerActionButton($iconClass, $label, $onclick, $id = '', $extraClass = '', $startHidden = false, $badge = '') {
@@ -2053,6 +2067,7 @@ function formulize_headerActionButton($iconClass, $label, $onclick, $id = '', $e
 		." title='".$label."' aria-label='".$label."'"
 		." onclick=\"".$onclick."\">"
 		."<span class='".$iconClass." fz-header-action__icon' aria-hidden='true'></span>"
+		."<span class='fz-header-action__label' aria-hidden='true'>".$label."</span>"
 		.($badge ? "<span class='fz-header-action__badge' aria-hidden='true'>".htmlspecialchars($badge, ENT_QUOTES)."</span>" : "")
 		."</button>";
 }
@@ -2236,46 +2251,68 @@ function addOwnershipList($form, $groups, $member_handler, $gperm_handler, $fid,
 		$proxylist->setClass("formulize-office-use-only-start-hidden");
 	}
 
-	// Issue #151: on a full form screen the two toggle buttons move to the header strip as
-	// icon buttons. They keep the officeUseOnlyToggle() onclick, the
+	// Issue #151: the two toggle buttons live in the form screen's header strip rather
+	// than inline in the form body. They keep the officeUseOnlyToggle() onclick, the
 	// formulize-office-use-only-toggle class the toggle operates on, and the show/hide
 	// starting state - only the position and the presentation change. The Office Use Only
 	// content itself (the proxy/owner list above) stays where it is in the form body.
 	//
-	// An elements-only render has no header strip (its host, the right slide-out drawer,
-	// draws its own chrome), so it keeps the original inline buttons exactly as before.
-	if(!($form instanceof formulize_elementsOnlyForm)) {
-		// Locked padlock = the staff-only section is closed, click to open it;
-		// unlocked padlock = it is open, click to close it again. Both glyphs come from
-		// the formulize-icons webfont already used by the page-nav strip these join.
-		$form->addHeaderAction(formulize_headerActionButton(
+	// Locked padlock = the staff-only section is closed, click to open it; unlocked
+	// padlock = it is open, click to close it again. Both glyphs come from the
+	// formulize-icons webfont already used by the page-nav strip these join.
+	$officeUseOnlyButtons = formulize_headerActionButton(
 			'icon-lock', _formulize_SHOW." '"._formulize_OFFICE_USE_ONLY."'", "officeUseOnlyToggle();",
-			'formulize-office-use-only-show', 'formulize-office-use-only-toggle', ($startOfficeUseOnlyHidden == false)));
-		$form->addHeaderAction(formulize_headerActionButton(
+			'formulize-office-use-only-show', 'formulize-office-use-only-toggle', ($startOfficeUseOnlyHidden == false))
+		."\n".formulize_headerActionButton(
 			'icon-lock-unlocked', _formulize_HIDE." '"._formulize_OFFICE_USE_ONLY."'", "officeUseOnlyToggle();",
-			'formulize-office-use-only-hide', 'formulize-office-use-only-toggle', ($startOfficeUseOnlyHidden == true)));
-		$form->addElement($proxylist);
-		return $form;
+			'formulize-office-use-only-hide', 'formulize-office-use-only-toggle', ($startOfficeUseOnlyHidden == true));
+
+	// PR #153 review: the drawer gets these too, in the same place relative to its own
+	// chrome (the right hand end of its page strip). An elements-only render draws no
+	// header of its own - everything it emits goes inside the drawer's scrolling body and
+	// inside the posted <form> - so the markup cannot simply be placed here. It is
+	// published as metadata instead, exactly as the screen's form buttons and paging are,
+	// and drawer.js puts it in the drawer's strip. Same markup, same classes, same
+	// onclick, so the two surfaces cannot drift apart.
+	if($form instanceof formulize_elementsOnlyForm) {
+		formulize_registerElementsOnlyHeaderActions($officeUseOnlyButtons);
+	} else {
+		$form->addHeaderAction($officeUseOnlyButtons);
 	}
 
-	$officeUseOnlyShow = new XoopsFormLabel("<input type='button' onclick='officeUseOnlyToggle();' value='"._formulize_SHOW." &#039;"._formulize_OFFICE_USE_ONLY."&#039;' />", "", 'office-use-only-show');
-	$officeUseOnlyShow->setClass("no-print");
-	$officeUseOnlyShow->setClass("formulize-office-use-only-toggle");
-	if($startOfficeUseOnlyHidden == false) {
-		$officeUseOnlyShow->setClass("formulize-office-use-only-start-hidden");
-	}
-
-	$officeUseOnlyHide = new XoopsFormLabel("<input type='button' onclick='officeUseOnlyToggle();' value='"._formulize_HIDE." &#039;"._formulize_OFFICE_USE_ONLY."&#039;' />", "", 'office-use-only-hide');
-	$officeUseOnlyHide->setClass("no-print");
-	$officeUseOnlyHide->setClass("formulize-office-use-only-toggle");
-	if($startOfficeUseOnlyHidden == true) {
-		$officeUseOnlyHide->setClass("formulize-office-use-only-start-hidden");
-	}
-
-	$form->addElement($officeUseOnlyShow);
-	$form->addElement($officeUseOnlyHide);
 	$form->addElement($proxylist);
 	return $form;
+}
+
+/**
+ * Record the header-action markup of an elements-only render, for the host to place in
+ * its own chrome (see formulize_elementsOnlyHeaderActionsJs). Only the first registration
+ * of a request is kept: a drawer form renders its subforms elements-only too, and those
+ * must not contribute a second set of controls for the entry being shown. The form the
+ * request actually asked for is rendered first, so first-wins is the outer form.
+ */
+function formulize_registerElementsOnlyHeaderActions($markup) {
+	if($markup AND !isset($GLOBALS['formulize_elementsOnlyHeaderActions'])) {
+		$GLOBALS['formulize_elementsOnlyHeaderActions'] = $markup;
+	}
+}
+
+/**
+ * Publish the header actions recorded during an elements-only render, in the same
+ * json-in-a-script-tag form as the screen's button and paging metadata. Returns "" when
+ * the render produced none, in which case the host shows only its own controls.
+ *
+ * NB the class is deliberately not `fz-header-actions` - that is the class of the
+ * container the host places this markup into, and it carries `display: inline-flex`,
+ * which applied to a <script> would override the UA stylesheet's `display: none` and
+ * print the raw json into the page.
+ */
+function formulize_elementsOnlyHeaderActionsJs() {
+	if(empty($GLOBALS['formulize_elementsOnlyHeaderActions'])) {
+		return '';
+	}
+	return "<script type=\"application/json\" class=\"fz-header-actions-meta\">"
+		.json_encode(array('html' => $GLOBALS['formulize_elementsOnlyHeaderActions']))."</script>\n";
 }
 
 /**
