@@ -497,7 +497,8 @@ function displayFormPages($formframe, $entry_id, $mainform, $pages, $conditions=
 			array(0=>"{NOBUTTON}", 1=>"{NOBUTTON}", 2=>"{NOBUTTON}", 3=>$multipagePrintableViewText),
 			array(), $fid, $uid, $entry_id, false, $printall, '');
 		$multipageButtonMeta = array(
-			'printableView' => isset($multipagePrintableViewButtons['printableview']) ? trans($multipagePrintableViewButtons['printableview']) : null,
+			// shortened for the drawer's header strip, exactly as full screen (PR #153 review)
+			'printableView' => isset($multipagePrintableViewButtons['printableview']) ? trans(formulize_headerActionPrintLabel($multipagePrintableViewButtons['printableview'])) : null,
 			'save'          => $multipageSaveButtonText,
 			// Full screen, a tabbed multipage screen offers "save and leave" as the leading
 			// tab of its tab strip. The drawer's strip carries pages only, so the control

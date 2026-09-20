@@ -77,6 +77,19 @@ class formulize_themeForm extends XoopsThemeForm {
     private $tokenName;
     private $tokenVal;
 
+    // Icon buttons that belong in the form screen's header strip (top right, across from
+    // the page tabs) rather than at the bottom of the form body - issue #151. Populated
+    // while the form is being built (addSubmitButton) and handed to the toptemplate as
+    // $headerActions when the form renders, which is after every element has been added.
+    // Only the printable view control(s) go here: a header action has to be something
+    // that leaves the form (printing does), because a control whose effect is a change
+    // somewhere in the form body is too far from what it changes to be understood there
+    // (PR #153 review - which is why the Office Use Only toggle went back into the body).
+    // Elements-only renders never fill this; everything they emit lands inside the host's
+    // scrolling body and inside the posted <form>, which is the wrong place for chrome,
+    // so the drawer builds its own strip from the published button metadata instead.
+    private $headerActions = array();
+
 
     // $screen is the screen being rendered, either a multipage or a single page form screen - multipage screen is passed through when rendering happens
     function __construct($title, $name, $action, $method = "post", $addtoken = false, $frid = 0, $screen = null) {
@@ -101,6 +114,27 @@ class formulize_themeForm extends XoopsThemeForm {
 				$class .= $class ? ' formulize-text-for-display' : 'formulize-text-for-display';
         $ibContents = $extra."<<||>>".$name."<<||>>".$element_handle."<<||>>".$class; // can only assign strings or real element objects with addElement, not arrays
         $this->addElement($ibContents);
+    }
+
+    /**
+     * Add an icon button to the form screen's header strip (issue #151).
+     * $markup is the complete <button> markup, built by formulize_headerActionButton().
+     */
+    public function addHeaderAction($markup) {
+        if($markup) {
+            $this->headerActions[] = $markup;
+        }
+    }
+
+    /**
+     * The header strip's markup, or "" when this form has no header actions.
+     * Consumed by the screen toptemplates as the $headerActions variable.
+     */
+    public function getHeaderActions() {
+        if(count($this->headerActions) == 0) {
+            return "";
+        }
+        return "<div class='fz-header-actions no-print'>".implode("\n", $this->headerActions)."</div>";
     }
 
     /**
@@ -146,7 +180,16 @@ class formulize_themeForm extends XoopsThemeForm {
 
         // top template
         $template = $this->getTemplate('toptemplate');
-        $ret .= $this->processTemplate($template, array('formTitle'=>$this->getTitle()));
+        $headerActions = $this->getHeaderActions();
+        $topOutput = $this->processTemplate($template, array('formTitle'=>$this->getTitle(), 'headerActions'=>$headerActions));
+        // Safety net for a screen running a customised toptemplate stored in the database:
+        // it predates $headerActions and so would silently drop the print / Office Use Only
+        // controls altogether. If the template did not place the strip, place it ourselves
+        // above whatever the template produced, so the controls always exist somewhere.
+        if($headerActions AND strpos($topOutput, "fz-header-actions") === false) {
+            $topOutput = "<div class='fz-header-actions-standalone'>".$headerActions."</div>".$topOutput;
+        }
+        $ret .= $topOutput;
 
         // render elements
 		$hidden = '';
@@ -627,7 +670,10 @@ class formulize_elementsOnlyForm extends formulize_themeForm {
 
         $ret = '';
         if($wrapperTop) {
-            $ret = $this->processTemplate($wrapperTop, array('formTitle'=>$this->getTitle()));
+            // headerActions is always empty here (elements-only publishes its header actions
+            // as metadata for the host to place instead, see the property's note) but is
+            // passed so a shared toptemplate can reference it safely.
+            $ret = $this->processTemplate($wrapperTop, array('formTitle'=>$this->getTitle(), 'headerActions'=>$this->getHeaderActions()));
         } elseif($elementsInTable) {
             // major league hack to open table if it seems the top template would have opened a table for the element containers
             $ret = '<table>';
@@ -1964,7 +2010,9 @@ function formulize_recordElementsOnlyButtonMeta($go_back, $currentURL, $button_t
 	$buttons = formulize_resolveFormButtons($button_text, $go_back, $fid, $uid, $entry, $allDoneOverride, $printall, $currentURL, _formulize_SAVE);
 
 	$meta = array(
-		'printableView' => isset($buttons['printableview']) ? trans($buttons['printableview']) : null,
+		// the drawer puts this in its header strip, the same place the full screen form
+		// puts it, so it gets the same shortened wording (PR #153 review)
+		'printableView' => isset($buttons['printableview']) ? trans(formulize_headerActionPrintLabel($buttons['printableview'])) : null,
 		'save'          => isset($buttons['save'])          ? trans($buttons['save'])          : null,
 		'saveAndLeave'  => isset($buttons['saveandleave'])  ? trans($buttons['saveandleave'])  : null,
 		'done'          => isset($buttons['done'])          ? trans($buttons['done'])          : null,
@@ -1980,6 +2028,83 @@ function formulize_recordElementsOnlyButtonMeta($go_back, $currentURL, $button_t
 	}
 
 	formulize_registerElementsOnlyButtonMeta(formulize_elementsOnlyButtonMetaKey($screen, $fid), $meta);
+}
+
+/**
+ * The wording a printable view control carries in the header strip, full screen and in
+ * the drawer alike.
+ *
+ * The strip is a row of small controls sharing a line with the page tabs, so a label like
+ * "Printable Version - All Pages" pushes the cluster onto its own line on any screen that
+ * has a few tabs (PR #153 review: "the labels are definitely too long"). The stock wording
+ * is therefore shortened to "Print" / "Print all" here - and only here. Everywhere that
+ * wording is a screen setting rather than a label (the admin default, the migration, the
+ * printview page itself) still uses _formulize_PRINTVIEW unchanged.
+ *
+ * A screen that has configured its own printable view text keeps it verbatim: that is a
+ * deliberate choice by whoever set up the screen, and it is not this function's business
+ * to second guess it.
+ *
+ * @param string $configuredText - the screen's resolved printable view button text
+ * @param bool $allPages - true for the "all pages" variant of the control
+ * @return string - raw (untranslated) label; callers pass it through trans()
+ */
+function formulize_headerActionPrintLabel($configuredText, $allPages = false) {
+	if(trim($configuredText) === trim(_formulize_PRINTVIEW)) {
+		// guarded: only the english language file carries the short constants
+		if($allPages) {
+			return defined('_formulize_PRINTALLVIEW_SHORT') ? _formulize_PRINTALLVIEW_SHORT : 'Print all';
+		}
+		return defined('_formulize_PRINTVIEW_SHORT') ? _formulize_PRINTVIEW_SHORT : 'Print';
+	}
+	return $allPages ? str_replace(_formulize_PRINTVIEW, $configuredText, _formulize_PRINTALLVIEW) : $configuredText;
+}
+
+/**
+ * Build one button for the form screen's header strip (issue #151).
+ *
+ * Icon plus visible text at desktop widths, collapsing to the icon alone below the
+ * 768px breakpoint the rest of the UI uses (PR #153 review: the icon-only buttons
+ * read as too small on a desktop screen). The visible label is the same string the
+ * button the control replaced carried, and is aria-hidden so the accessible name is
+ * only ever the aria-label - that keeps the name stable at both widths, and keeps
+ * the existing e2e assertion (getByRole('button', {name: 'Printable Version'}))
+ * resolving exactly as it did. title is still set, so the tooltip carries the full
+ * label when the text is collapsed away; the codebase has no tooltip component of
+ * its own, so the native attribute remains the pattern here.
+ *
+ * The glyph comes from the formulize-icons webfont via an .icon-* class on an
+ * aria-hidden span, which is the mechanism the page-nav strip these buttons join
+ * already uses (the "save and leave" tab is .icon-arrow-backward). The
+ * recommendation in PR #152 for a standardised emitter is not implemented, so this
+ * deliberately reuses the nearest existing mechanism rather than adding a new one.
+ *
+ * @param string $iconClass - the formulize-icons class, e.g. 'icon-print'
+ * @param string $label - the accessible name / tooltip text / visible desktop text
+ *                        (for the print controls, pass what formulize_headerActionPrintLabel
+ *                        returns, so the header's wording is short enough for the strip)
+ * @param string $onclick - the javascript the old bottom-of-form button ran, unchanged
+ * @param string $id - optional id, preserved from the markup this button replaces
+ * @param string $extraClass - optional extra class(es) on the button
+ * @param bool $startHidden - render with display:none (jQuery .toggle() still works on it)
+ * @param string $badge - optional short text shown beside the glyph, only when the
+ *                        visible label is collapsed away (otherwise the label already
+ *                        disambiguates the button and the badge would repeat it)
+ * @return string
+ */
+function formulize_headerActionButton($iconClass, $label, $onclick, $id = '', $extraClass = '', $startHidden = false, $badge = '') {
+	$label = htmlspecialchars(trans($label), ENT_QUOTES);
+	$classes = trim('fz-header-action '.$extraClass);
+	return "<button type='button'"
+		.($id ? " id='".htmlspecialchars($id, ENT_QUOTES)."'" : "")
+		." class='".$classes."'"
+		.($startHidden ? " style='display: none;'" : "")
+		." title='".$label."' aria-label='".$label."'"
+		." onclick=\"".$onclick."\">"
+		."<span class='".$iconClass." fz-header-action__icon' aria-hidden='true'></span>"
+		."<span class='fz-header-action__label' aria-hidden='true'>".$label."</span>"
+		.($badge ? "<span class='fz-header-action__badge' aria-hidden='true'>".htmlspecialchars($badge, ENT_QUOTES)."</span>" : "")
+		."</button>";
 }
 
 // add the submit button to a form
@@ -2003,7 +2128,6 @@ function addSubmitButton($form, $subButtonText, $go_back, $currentURL, $button_t
 	// drawer gets, from the same function, so the two can never disagree
 	$buttons = formulize_resolveFormButtons($button_text, $go_back, $fid, $uid, $entry, $allDoneOverride, $printall, $currentURL, $subButtonText);
 
-	$rendered_buttons = "";
 	if(isset($buttons['printableview'])) {
 
 		$pv_text_temp = $buttons['printableview'];
@@ -2022,19 +2146,28 @@ function addSubmitButton($form, $subButtonText, $go_back, $currentURL, $button_t
 		print "</form>";
 		//added by Cory Aug 27, 2005 to make forms printable
 
-		$printbutton = new XoopsFormButton('', 'printbutton',  $pv_text_temp, 'button');
+		// Issue #151: the printable view control(s) used to be rendered into this tray's
+		// caption, which put them at the bottom of the form body. They are now icon buttons
+		// in the form screen's header strip instead. Only the presentation and the position
+		// changed - the javascript each one runs, and the hidden printview form it submits,
+		// are exactly what they were.
 		$ele_allowed = $printViewFields['elements_allowed'];
-		$printbutton->setExtra("onclick='javascript:PrintPop(\"$ele_allowed\");'");
-		$rendered_buttons = $printbutton->render(); // nmc 2007.03.24 - added
+		$form->addHeaderAction(formulize_headerActionButton(
+			'icon-print', formulize_headerActionPrintLabel($pv_text_temp),
+			"javascript:PrintPop('".$ele_allowed."');", 'printbutton'));
 		if ($printall) {																					// nmc 2007.03.24 - added
-			$printallbutton = new XoopsFormButton('', 'printallbutton', str_replace(_formulize_PRINTVIEW, $pv_text_temp, _formulize_PRINTALLVIEW), 'button');	// nmc 2007.03.24 - added
-			$printallbutton->setExtra("onclick='javascript:PrintAllPop();'");								// nmc 2007.03.24 - added
-			$rendered_buttons .= "&nbsp;&nbsp;&nbsp;" . $printallbutton->render();							// nmc 2007.03.24 - added
+			// The "all pages" variant only exists on multipage screens configured for it.
+			// A second, identical printer glyph would be ambiguous, so it carries a short
+			// "All" badge in addition to its own tooltip.
+			$form->addHeaderAction(formulize_headerActionButton(
+				'icon-print',
+				formulize_headerActionPrintLabel($pv_text_temp, true),
+				"javascript:PrintAllPop();", 'printallbutton', 'fz-header-action--with-badge', false,
+				// guarded: only the english language file carries this constant
+				defined('_formulize_PRINTALLVIEW_BADGE') ? _formulize_PRINTALLVIEW_BADGE : 'All'));
 			}
-		$buttontray = new XoopsFormElementTray($rendered_buttons, "", 'button-controls'); // nmc 2007.03.24 - amended [nb: FormElementTray 'caption' is actually either 1 or 2 buttons]
-	} else {
-		$buttontray = new XoopsFormElementTray("", "", 'button-controls');
 	}
+	$buttontray = new XoopsFormElementTray("", "", 'button-controls');
 	$buttontray->setClass("no-print");
 
 	if(isset($buttons['save'])) {
@@ -2056,10 +2189,13 @@ function addSubmitButton($form, $subButtonText, $go_back, $currentURL, $button_t
 		$buttontray->addElement($donebutton);
 	}
 
-	// formulize_displayingMultipageScreen is set in formdisplaypages to indicate we're displaying a multipage form
-	global $formulize_displayingMultipageScreen;
+	// Issue #151: the tray is added only when it actually holds buttons. It used to be
+	// added on a multipage screen purely to carry the printable view control in its
+	// caption; that control is now a header icon button, so a multipage screen (whose
+	// save/done controls live in #multipage-controls) would otherwise be left with an
+	// empty tray row at the bottom of the form body.
 	$trayElements = $buttontray->getElements();
-	if(count((array) $trayElements) > 0 OR ($rendered_buttons AND $formulize_displayingMultipageScreen)) {
+	if(count((array) $trayElements) > 0) {
 		$form->addElement($buttontray);
 	}
 	return $form;
@@ -2151,6 +2287,19 @@ function addOwnershipList($form, $groups, $member_handler, $gperm_handler, $fid,
 		$proxylist->setClass("formulize-office-use-only-start-hidden");
 	}
 
+	// PR #153 review: these two live in the form body, immediately above the proxy/owner
+	// list they reveal, and not in the screen's header strip. #151 moved them out there
+	// with the print controls; on reflection that put the control a long way from its
+	// effect - the person clicks a button in the header and the thing that changes is a
+	// field somewhere down the form, which they may not even have scrolled to. Keeping
+	// them adjacent to the field means the reveal happens right where they are looking.
+	//
+	// That also settles the icon question: back in the form body these are ordinary form
+	// buttons, the same plain <input type=button> every other inline control in a form
+	// body is, so there is no glyph to choose and nothing that reads as a padlock. Only
+	// the position and the presentation ever changed - the officeUseOnlyToggle() onclick,
+	// the formulize-office-use-only-toggle class the toggle operates on, and the show/hide
+	// starting state are what they have always been.
 	$officeUseOnlyShow = new XoopsFormLabel("<input type='button' onclick='officeUseOnlyToggle();' value='"._formulize_SHOW." &#039;"._formulize_OFFICE_USE_ONLY."&#039;' />", "", 'office-use-only-show');
 	$officeUseOnlyShow->setClass("no-print");
 	$officeUseOnlyShow->setClass("formulize-office-use-only-toggle");

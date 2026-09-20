@@ -157,7 +157,7 @@ test.describe('Validate Data', () => {
 		await page.locator('#mainmenu').getByRole('link', { name: 'Donors', exact: true }).click();
 		await page.getByRole('row', { name: 'Freeform Solutions' }).getByRole('link').first().click();
 		const page2Promise = page.waitForEvent('popup');
-		await page.getByRole('button', { name: 'Printable Version' }).click();
+		await page.getByRole('button', { name: 'Print', exact: true }).click();
 		const page2 = await page2Promise;
 		await expect(page2.getByText('Type of donor')).toBeVisible();
 		await expect(page2.getByText('Organization', { exact: true })).toBeVisible();
@@ -178,7 +178,7 @@ test.describe('Validate Data', () => {
 		await page.getByRole('link', { name: 'Donated Artifacts' }).click();
 		await expect(page.getByText('Add new artifact')).toBeVisible();
 		const page3Promise = page.waitForEvent('popup');
-		await page.getByRole('button', { name: 'Printable Version' }).click();
+		await page.getByRole('button', { name: 'Print', exact: true }).click();
 		const page3 = await page3Promise;
 		await expect(page3.getByText('Donated artifacts').nth(1)).toBeVisible();
 		await expect(page3.getByText('ID Number').first()).toBeVisible();

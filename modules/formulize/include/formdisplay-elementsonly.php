@@ -327,6 +327,12 @@ print "</form>\n";
 // drawer builds its footer from this, which is what keeps the two surfaces consistent.
 print formulize_elementsOnlyButtonMetaJs($screen, $fid);
 
+// NB there is no separate header-action metadata any more. The only thing that ever
+// travelled that way was the Show/Hide 'Office Use Only' pair, and PR #153's review put
+// that back in the form body next to the proxy/owner field it reveals, where it renders
+// as an ordinary element of this fragment. The drawer's header strip is built entirely
+// from the button metadata above.
+
 // Rich-text (CKEditor) bootstrap. In a full page load formdisplay.php's drawJavascript()
 // loads the CKEditor library (via $xoTheme->addScript) and emits the initializeCKEditor /
 // updateCKEditors JS. In elements-only mode drawJavascript() is skipped and $xoTheme->addScript

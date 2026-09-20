@@ -2842,6 +2842,57 @@ body:not(.fz-inline) .fz-main #pageNavTable.pill-tabs.is-scrolled::after {
   border-color: var(--c-accent);
 }
 
+/* ---------- Form screen header icon buttons (issue #151) ----------
+   The printable view control and the "Office Use Only" show/hide toggle moved
+   out of the bottom of the form body and into the form screen's header: the
+   right hand end of the sticky `#pageNavTable.pill-tabs` strip on a multipage
+   screen, or the card header on a single page one. Base sizing/behaviour comes
+   from modules/formulize/templates/css/formulize.css; this gives them the same
+   bordered-pill treatment as the page tabs they sit beside, so the row reads as
+   one set of controls.
+
+   `margin-left: auto` on the cluster (set in the base stylesheet) pushes it to
+   the far right of the flex strip. The strip is `flex-wrap: wrap`, so at narrow
+   widths the cluster wraps onto its own line below the tabs rather than
+   squeezing them - it stays right aligned there because the auto margin still
+   absorbs the free space on that line.
+
+   These carry the `fz-` prefix, so the blanket `button:not([class*="fz-"])`
+   rule further down this file deliberately does not touch them. */
+button.fz-header-action {
+  height: 28px;
+  padding: 0 var(--s-2, 8px);
+  font-size: var(--fs-13);
+  color: var(--c-text-muted);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-full, 999px);
+  transition: color var(--dur-1) var(--ease),
+              border-color var(--dur-1) var(--ease),
+              background-color var(--dur-1) var(--ease);
+}
+
+button.fz-header-action:hover {
+  color: var(--c-text);
+  background: var(--c-surface-2);
+  border-color: var(--c-border-strong);
+}
+
+button.fz-header-action:focus-visible {
+  outline: none;
+  box-shadow: var(--sh-focus);
+}
+
+/* The "all pages" print variant carries a short text badge beside its glyph, so
+   it needs a touch more room than the icon-only buttons. */
+button.fz-header-action--with-badge {
+  padding: 0 var(--s-2-5, 10px) 0 var(--s-2, 8px);
+}
+
+.fz-header-action__badge {
+  color: var(--c-text-muted);
+}
+
 /* NOTE: Formulize core (modules/formulize/templates/css/formulize.css) styles
    `.formulize-form-submit-button` with `background-color:#008CC4 !important`,
    `color:white !important`, `min-width:185px` and `height:36px`. We must use
