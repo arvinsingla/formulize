@@ -79,6 +79,18 @@
      theme.html and simply goes unused when another font is chosen. */
   --font-sans: Poppins, Helvetica, Verdana, sans-serif;
 
+  /* The secondary font, used for headings, form labels, and the drawer's title.
+     Follows --font-sans unless the Appearance page has been given a second font
+     to use, so one font throughout stays the default. */
+  --font-heading: var(--font-sans);
+
+  /* Base font size: the root font size, applied to `html` in style.css. This
+     theme sizes its text in rem and em throughout, so every text size is already
+     a proportion of this one and moving it moves all of them. The Appearance
+     page's "Base font size" setting overrides it, and a user's own profile font
+     size setting overrides that in turn (see theme.html). */
+  --font-size-base: 16px;
+
   /* Anari-specific shadows. Both follow the colour they tint, so they keep
      tracking the Primary/Text settings without the Appearance page needing to
      know about them: these are shaped glows rather than the flat ring that

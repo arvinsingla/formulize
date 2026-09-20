@@ -313,12 +313,81 @@ function formulize_appearanceFontMap($theme = null) {
 }
 
 /**
+ * The font choices offered for the secondary font, ie: the one headings, form
+ * labels and the drawer's title are set in.
+ *
+ * Same list of families as the main font, with one difference: the first option
+ * doesn't mean "this theme's own font", it means "don't use a second font at
+ * all". A theme declares --font-heading as var(--font-sans), so leaving this
+ * setting alone is what makes headings follow whatever the main font is, and
+ * nothing is written for it. That is also what the issue asks for: the second
+ * font only does anything when it is different from the first.
+ *
+ * @param string|null $theme theme folder name, defaults to the active theme
+ * @return array font key => array with 'label', 'google', 'stack'
+ */
+function formulize_appearanceHeadingFontMap($theme = null) {
+    $fonts = formulize_appearanceFontMap($theme);
+    $fonts['geist']['label'] = 'Same as the main font (default)';
+    return $fonts;
+}
+
+/**
+ * The base font sizes on offer, ie: the root font size the rest of the type
+ * scale is expressed relative to. A short list of whole pixel sizes rather than
+ * a free number field: every size here is one the themes have been looked at in,
+ * and the type scale is proportional, so a couple of steps either side of the
+ * default is the whole useful range.
+ *
+ * @return array css length => label
+ */
+function formulize_appearanceFontSizeMap() {
+    return array(
+        '14px' => '14px - smaller',
+        '15px' => '15px',
+        '16px' => '16px - default',
+        '17px' => '17px',
+        '18px' => '18px - larger',
+        '20px' => '20px - largest',
+    );
+}
+
+/**
+ * The base font size a theme uses when none has been chosen on the Appearance
+ * page, ie: the --font-size-base it declares itself. Read from the theme the
+ * same way the default colours are, so the Appearance page shows and resets to
+ * what the theme actually looks like.
+ *
+ * @param string|null $theme theme folder name, defaults to the active theme
+ * @return string a css length, eg: '16px'
+ */
+function formulize_appearanceThemeFontSize($theme = null) {
+    $tokens = formulize_appearanceThemeTokens($theme);
+    $value = formulize_sanitizeAppearanceFontSize(isset($tokens['--font-size-base']) ? $tokens['--font-size-base'] : '');
+    return $value ? $value : '16px';
+}
+
+/**
+ * Validate a user-supplied base font size. Only the sizes we offer are accepted,
+ * so nothing arbitrary can be written into the generated stylesheet.
+ *
+ * @param string $value the submitted size
+ * @return string the size, or '' if it isn't one we offer
+ */
+function formulize_sanitizeAppearanceFontSize($value) {
+    $value = strtolower(trim((string) $value));
+    $sizes = formulize_appearanceFontSizeMap();
+    return isset($sizes[$value]) ? $value : '';
+}
+
+/**
  * The names of all the appearance settings, ie: the keys of a settings array
  *
  * @return array of setting names
  */
 function formulize_appearanceSettingNames() {
-    $names = array('appearance_font', 'appearance_customfont', 'appearance_logo');
+    $names = array('appearance_font', 'appearance_customfont', 'appearance_headingfont',
+        'appearance_headingcustomfont', 'appearance_fontsize', 'appearance_logo');
     // the definition, not the theme-aware map: the setting names are the same for every
     // theme, and only the defaults differ, so there is no theme to resolve here
     foreach (array_keys(formulize_appearanceColourMapDefinition()) as $key) {
@@ -483,6 +552,19 @@ function formulize_sanitizeAppearanceSettings($values, $theme = null) {
     }
     $clean['appearance_font'] = ($font == 'geist') ? '' : $font;
     $clean['appearance_customfont'] = ($font == 'custom') ? $customFont : '';
+    // the secondary font is the same list, and 'geist' means "no second font", which is
+    // the default and so is recorded as nothing at all, exactly like the main font
+    $headingFont = isset($values['appearance_headingfont']) ? trim((string) $values['appearance_headingfont']) : '';
+    $headingCustomFont = formulize_sanitizeAppearanceFontFamily(isset($values['appearance_headingcustomfont']) ? $values['appearance_headingcustomfont'] : '');
+    if (!isset($fonts[$headingFont]) OR ($headingFont == 'custom' AND $headingCustomFont === '')) {
+        $headingFont = 'geist';
+    }
+    $clean['appearance_headingfont'] = ($headingFont == 'geist') ? '' : $headingFont;
+    $clean['appearance_headingcustomfont'] = ($headingFont == 'custom') ? $headingCustomFont : '';
+    // nothing is recorded for the theme's own base size, the same way a default colour
+    // isn't, so the theme keeps deciding what its default type scale is
+    $fontSize = formulize_sanitizeAppearanceFontSize(isset($values['appearance_fontsize']) ? $values['appearance_fontsize'] : '');
+    $clean['appearance_fontsize'] = ($fontSize == formulize_appearanceThemeFontSize($theme)) ? '' : $fontSize;
     // the logo is a bare filename in the theme's appearance folder, never a path
     $logo = basename(trim((string) (isset($values['appearance_logo']) ? $values['appearance_logo'] : '')));
     $clean['appearance_logo'] = preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $logo) ? $logo : '';
@@ -637,20 +719,24 @@ function formulize_getAppearanceSettings($theme = null) {
 }
 
 /**
- * Resolve the Google Fonts css2 URL and the --font-sans value for the current
- * settings. Geist Mono is always requested alongside, since --font-mono uses it.
+ * Resolve one font choice (a key into formulize_appearanceFontMap, plus the
+ * family typed in for the 'custom' choice) into the webfont to fetch and the
+ * font-family value to use. Shared by the main font and the secondary font, so
+ * the two behave identically, custom families included.
  *
- * @param array|null $settings appearance settings to use, defaults to the saved ones
- * @return array with 'url' (string|false) and 'stack' (string|false when default)
+ * @param string $choice       font key as saved in the settings
+ * @param string $customFamily family name for the 'custom' choice
+ * @return array with 'key' (the choice actually resolved to), 'google'
+ *               (css2 family parameter, or false when no webfont is needed) and
+ *               'stack' (the css font-family value)
  */
-function formulize_getAppearanceFont($settings = null) {
-    $settings = is_array($settings) ? $settings : formulize_getAppearanceSettings();
+function formulize_resolveAppearanceFontChoice($choice, $customFamily) {
     $fonts = formulize_appearanceFontMap();
-    $choice = isset($fonts[$settings['appearance_font']]) ? $settings['appearance_font'] : 'geist';
+    $choice = isset($fonts[$choice]) ? $choice : 'geist';
     $googleFamily = $fonts[$choice]['google'];
     $stack = $fonts[$choice]['stack'];
     if ($choice == 'custom') {
-        $family = formulize_sanitizeAppearanceFontFamily($settings['appearance_customfont']);
+        $family = formulize_sanitizeAppearanceFontFamily($customFamily);
         if ($family) {
             $googleFamily = str_replace(' ', '+', $family) . ':wght@400;500;600;700';
             $stack = "'" . $family . "', " . $fonts['system']['stack'];
@@ -661,13 +747,50 @@ function formulize_getAppearanceFont($settings = null) {
             $stack = $fonts['geist']['stack'];
         }
     }
+    return array('key' => $choice, 'google' => $googleFamily, 'stack' => $stack);
+}
+
+/**
+ * Resolve the Google Fonts css2 URL and the font-family values for the current
+ * settings. Geist Mono is always requested alongside, since --font-mono uses it,
+ * and the secondary font is requested too when one has been chosen and is not
+ * the family the main font already brings in.
+ *
+ * @param array|null $settings appearance settings to use, defaults to the saved ones
+ * @return array with 'url' (string|false), 'stack' (string|false when default)
+ *               and 'heading' (string|false when headings follow the main font)
+ */
+function formulize_getAppearanceFont($settings = null) {
+    $settings = is_array($settings) ? $settings : formulize_getAppearanceSettings();
+    $font = formulize_resolveAppearanceFontChoice(
+        isset($settings['appearance_font']) ? $settings['appearance_font'] : '',
+        isset($settings['appearance_customfont']) ? $settings['appearance_customfont'] : ''
+    );
+    $heading = formulize_resolveAppearanceFontChoice(
+        isset($settings['appearance_headingfont']) ? $settings['appearance_headingfont'] : '',
+        isset($settings['appearance_headingcustomfont']) ? $settings['appearance_headingcustomfont'] : ''
+    );
+    // 'geist' on the secondary font means "follow the main font", so it brings nothing
+    // of its own, and neither does picking the same family the main font already fetched
+    $headingIsSeparate = ($heading['key'] != 'geist');
+    $families = array();
+    if ($font['google']) {
+        $families[] = $font['google'];
+    }
+    if ($headingIsSeparate AND $heading['google'] AND $heading['google'] != $font['google']) {
+        $families[] = $heading['google'];
+    }
+    // "System UI (no webfont)" for both picks means exactly that: nothing is fetched,
+    // Geist Mono included, the same as before there was a secondary font to consider
     $url = false;
-    if ($googleFamily) {
-        $url = 'https://fonts.googleapis.com/css2?family=' . $googleFamily . '&family=Geist+Mono:wght@400;500&display=swap';
+    if ($families) {
+        $families[] = 'Geist+Mono:wght@400;500';
+        $url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=', $families) . '&display=swap';
     }
     return array(
         'url' => $url,
-        'stack' => ($choice == 'geist') ? false : $stack, // false means the theme's own default applies
+        'stack' => ($font['key'] == 'geist') ? false : $font['stack'], // false means the theme's own default applies
+        'heading' => $headingIsSeparate ? $heading['stack'] : false,   // false means headings follow --font-sans
     );
 }
 
@@ -847,8 +970,10 @@ function formulize_appearanceDirIsWritable($theme = null) {
 
 /**
  * The CSS custom property overrides the current settings call for: the font
- * stack when a non-default font is chosen, and the colour tokens (with their
- * derived variants) for every colour that differs from the design defaults.
+ * stack when a non-default font is chosen, the secondary font stack when a
+ * separate one is chosen for headings and labels, the base font size when it
+ * differs from the theme's, and the colour tokens (with their derived variants)
+ * for every colour that differs from the design defaults.
  *
  * @param array|null $settings appearance settings to use, defaults to the saved ones
  * @param string|null $theme the theme being styled, whose own palette is what
@@ -861,6 +986,17 @@ function formulize_getAppearanceCssOverrides($settings = null, $theme = null) {
     $font = formulize_getAppearanceFont($settings);
     if ($font['stack']) {
         $overrides['--font-sans'] = $font['stack'];
+    }
+    // Left alone, a theme's --font-heading is var(--font-sans), so headings and labels
+    // follow the main font without anything being written here.
+    if ($font['heading']) {
+        $overrides['--font-heading'] = $font['heading'];
+    }
+    // The root font size, which the themes express the rest of their type scale
+    // relative to, so moving this moves every text size with it.
+    $fontSize = formulize_sanitizeAppearanceFontSize(isset($settings['appearance_fontsize']) ? $settings['appearance_fontsize'] : '');
+    if ($fontSize AND $fontSize != formulize_appearanceThemeFontSize($theme)) {
+        $overrides['--font-size-base'] = $fontSize;
     }
     foreach (formulize_appearanceColourMap($theme) as $key => $colour) {
         $value = formulize_sanitizeAppearanceColour($settings['appearance_' . $key]);
